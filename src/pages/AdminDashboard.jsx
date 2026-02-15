@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getPendingUsers, approveUser, getMe } from '../api';
+import { getPendingUsers, approveUser } from '../api';
 import { useNavigate } from 'react-router-dom';
 
 const AdminDashboard = () => {
@@ -20,7 +20,7 @@ const AdminDashboard = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white p-8">
+        <div className="min-h-screen bg-gray-900 text-white p-8 w-full">
             <h1 className="text-3xl font-bold mb-8 text-purple-400">Admin Dashboard</h1>
             <div className="glass p-6 rounded-xl">
                 <h2 className="text-xl mb-4">Pending Approvals</h2>

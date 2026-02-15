@@ -40,8 +40,10 @@ export const getMe = async () => {
     return await api.get('/users/me');
 };
 
-export const getPrediction = async (symbol) => {
-    return await api.get(`/predict/${symbol}`);
+export const getPrediction = async (symbol, interval = '1h', period = '1mo') => {
+    return await api.get(`/predict/${symbol}`, {
+        params: { interval, period }
+    });
 }
 
 export const getMyHistory = async () => {
