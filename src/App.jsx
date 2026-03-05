@@ -1,16 +1,19 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import LandingPage from './pages/LandingPage';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import Signals from './pages/Signals';
 import Portfolio from './pages/Portfolio';
 import Analytics from './pages/Analytics';
 import Backtest from './pages/Backtest';
-import History from './pages/History';
+import HistoryPage from './pages/History';
 import Settings from './pages/Settings';
 import AdminDashboard from './pages/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './components/layout/DashboardLayout';
+import StockDetail from './pages/StockDetail';
+import { DataProvider } from './context/DataContext';
 
 const PlaceholderPage = ({ title }) => (
     <div className="p-4">
@@ -23,21 +26,25 @@ function App() {
     return (
         <Router>
             <Routes>
-                <Route path="/" element={<Auth />} />
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/auth" element={<Auth />} />
 
-                {/* Protected Routes with Layout - Temporarily Unprotected for UI Showoff */}
+                {/* Protected Routes with Layout */}
                 <Route element={
                     <ProtectedRoute>
-                        <DashboardLayout />
+                        <DataProvider>
+                            <DashboardLayout />
+                        </DataProvider>
                     </ProtectedRoute>
                 }>
                     <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/signals" element={<PlaceholderPage title="Live Signals" />} />
-                    <Route path="/portfolio" element={<PlaceholderPage title="Portfolio" />} />
-                    <Route path="/analytics" element={<PlaceholderPage title="Analytics" />} />
-                    <Route path="/backtest" element={<PlaceholderPage title="Backtesting" />} />
-                    <Route path="/history" element={<PlaceholderPage title="History" />} />
-                    <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+                    <Route path="/stock/:symbol" element={<StockDetail />} />
+                    <Route path="/signals" element={<Signals />} />
+                    <Route path="/portfolio" element={<Portfolio />} />
+                    <Route path="/analytics" element={<Analytics />} />
+                    <Route path="/backtest" element={<Backtest />} />
+                    <Route path="/history" element={<HistoryPage />} />
+                    <Route path="/settings" element={<Settings />} />
                 </Route>
 
                 <Route path="/admin" element={

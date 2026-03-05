@@ -21,11 +21,30 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
+// Interceptor to handle 401/403 (Unauthorized/Forbidden)
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            const isAuthPage = window.location.pathname === '/' || window.location.pathname === '/login';
+            if (!isAuthPage) {
+                localStorage.removeItem('token');
+                window.location.href = '/';
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 export const login = async (email, password) => {
-    const formData = new FormData();
-    formData.append('username', email);
-    formData.append('password', password);
-    const response = await api.post('/users/token', formData);
+    const params = new URLSearchParams();
+    params.append('username', email);
+    params.append('password', password);
+    const response = await api.post('/users/token', params, {
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+    });
     if (response.data.access_token) {
         localStorage.setItem('token', response.data.access_token);
     }
@@ -50,12 +69,40 @@ export const getMyHistory = async () => {
     return await api.get('/predict/history/me');
 }
 
+export const getNSESymbols = async () => {
+    return await api.get('/predict/symbols/nse');
+}
+
 export const getPendingUsers = async () => {
     return await api.get('/admin/pending-users');
 }
 
 export const approveUser = async (user_id) => {
     return await api.post(`/admin/approve/${user_id}`);
+}
+
+export const getActiveTrades = async () => {
+    return await api.get('/trades/active');
+}
+
+export const getTradeHistory = async () => {
+    return await api.get('/trades/history');
+}
+
+export const getPerformance = async () => {
+    return await api.get('/trades/performance');
+}
+
+export const executeManualTrade = async (symbol, side, quantity, price) => {
+    return await api.post('/trades/execute', { symbol, side, quantity, price });
+}
+
+export const closeTrade = async (tradeId) => {
+    return await api.post(`/trades/close/${tradeId}`);
+}
+
+export const getSystemConfig = async () => {
+    return await api.get('/trades/config');
 }
 
 export default api;

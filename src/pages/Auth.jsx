@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { login, register } from '../api';
-import { useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
+import LoadingScreen from '../components/shared/LoadingScreen';
 
 const Auth = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -8,7 +9,7 @@ const Auth = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const navigate = useNavigate();
+    const [redirectTo, setRedirectTo] = useState(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -17,7 +18,7 @@ const Auth = () => {
         try {
             if (isLogin) {
                 await login(email, password);
-                navigate('/dashboard');
+                setRedirectTo('/dashboard');
             } else {
                 await register(email, password);
                 alert("Registration successful! Please wait for Admin approval.");
@@ -25,7 +26,14 @@ const Auth = () => {
             }
         } catch (err) {
             if (err.response && err.response.data && err.response.data.detail) {
-                setError(err.response.data.detail);
+                const detail = err.response.data.detail;
+                if (Array.isArray(detail)) {
+                    setError(detail.map(d => d.msg).join(', ') || "Validation error occurred");
+                } else if (typeof detail === 'object') {
+                    setError(JSON.stringify(detail));
+                } else {
+                    setError(detail);
+                }
             } else {
                 setError("Authentication failed. Please try again.");
             }
@@ -34,8 +42,13 @@ const Auth = () => {
         }
     };
 
+    if (redirectTo) {
+        return <Navigate to={redirectTo} replace />;
+    }
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white w-full">
+            {isLoading && <LoadingScreen message={isLogin ? "Securing your session..." : "Creating your TradeX account..."} />}
             <div className="glass p-8 rounded-xl w-full max-w-md">
                 <h2 className="text-3xl font-bold mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
                     {isLogin ? 'Welcome Back' : 'Stock Market Dashboard'}

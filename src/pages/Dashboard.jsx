@@ -1,48 +1,138 @@
 import React, { useState, useEffect } from 'react';
-import { getPrediction, getMe, getMyHistory } from '../api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, ArrowDownRight, Activity, TrendingUp, AlertTriangle, Zap, Clock } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Activity, TrendingUp, AlertTriangle, Zap, Clock, Wallet, BarChart3, History, Maximize2 } from 'lucide-react';
+import { getPrediction, getMyHistory, closeTrade, getNSESymbols } from '../api';
+import { useData } from '../context/DataContext';
+import LoadingScreen from '../components/shared/LoadingScreen';
+import TradingTerminal from '../components/dashboard/TradingTerminal';
+import TechnicalAuditModal from '../components/dashboard/TechnicalAuditModal';
+
+const Sparkline = ({ data, color }) => (
+    <div className="h-12 w-24">
+        <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data}>
+                <Area type="monotone" dataKey="value" stroke={color} fill={color} fillOpacity={0.1} strokeWidth={2} isAnimationActive={false} />
+            </AreaChart>
+        </ResponsiveContainer>
+    </div>
+);
 
 const Dashboard = () => {
+    const { performance, activeTrades, tradeHistory, refreshData } = useData();
     const [symbol, setSymbol] = useState('NIFTY');
     const [interval, setInterval] = useState('1h');
     const [data, setData] = useState(null);
     const [history, setHistory] = useState([]);
+
     const [loading, setLoading] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
+    const [isAuditOpen, setIsAuditOpen] = useState(false);
+    const [latency, setLatency] = useState(0);
+    const [marketOpen, setMarketOpen] = useState(true);
     const navigate = useNavigate();
 
-    // Mock Data for UI Dev / Fallback
-    const mockData = {
-        prediction: "NEUTRAL",
-        reasoning: "Market data unavailable. Visualization mode enabled.",
-        confidence: 0.00,
-        current_price: 21543.50,
-        rsi: 50,
-        macd: 0.00,
-        poc: 21540.00,
-        sma_50: 21500.00,
-        strike: "N/A",
-        option_type: "-",
-        payoff_graph: [
-            { spot: 21400, profit: -100 },
-            { spot: 21450, profit: -50 },
-            { spot: 21500, profit: 0 },
-            { spot: 21550, profit: 120 },
-            { spot: 21600, profit: 250 }
-        ],
-        hft_risk: {
-            risk_amount: 0,
-            quantity: 0,
-            stop_loss: 0,
-            take_profit: 0
-        }
+    // Generate dynamic sparkline from history or fallback
+    const sparklineData = history.length > 5
+        ? history.slice(-10).map(h => ({ value: h.price || h.current_price }))
+        : [];
+
+    const displayData = data || {
+        prediction: "-",
+        reasoning: "Awaiting incoming vector streams...",
+        confidence: 0,
+        current_price: 0,
+        rsi: 0,
+        macd: 0,
+        payoff_graph: [],
+        hft_risk: {}
     };
 
-    const displayData = data || mockData;
+    // Calculate P&L and derived metrics from performance snapshot
+    const displayPnl = performance?.total_pnl ?? 0;
+    const winRate = performance?.win_rate ?? '0.0%';
+    const activeExposure = performance?.active_exposure ?? 0;
+    const activeUnits = performance?.active_units ?? 0;
+    const realizedPnl = performance?.realized_pnl ?? 0;
+    const unrealizedPnl = performance?.unrealized_pnl ?? 0;
+
+    // Market Status Check (IST: 9:15 - 15:30, Mon-Fri)
+    useEffect(() => {
+        const checkMarket = () => {
+            const now = new Date();
+            const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: 'numeric', minute: 'numeric', weekday: 'short' };
+            const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
+            const timeMap = Object.fromEntries(parts.map(p => [p.type, p.value]));
+
+            const hour = parseInt(timeMap.hour);
+            const minute = parseInt(timeMap.minute);
+            const weekday = timeMap.weekday;
+
+            const isWeekday = !['Sat', 'Sun'].includes(weekday);
+            const totalMinutes = hour * 60 + minute;
+            const openMinutes = 9 * 60 + 15;
+            const closeMinutes = 15 * 60 + 30;
+
+            setMarketOpen(isWeekday && totalMinutes >= openMinutes && totalMinutes <= closeMinutes);
+        };
+        checkMarket();
+        const interval = setInterval(checkMarket, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Simple trend strength heuristic based on confidence
+    const trendStrength = Math.min(
+        100,
+        Math.abs((displayData.confidence ?? 0.5) * 100 - 50) * 2
+    );
 
     useEffect(() => {
-        refreshHistory();
+        const init = async () => {
+            try {
+                // Fetch the full list of symbols
+                const symbolsRes = await getNSESymbols();
+                const allSymbols = symbolsRes.data;
+
+                if (allSymbols && allSymbols.length > 0) {
+                    // Pick 5 random symbols for seeding (Dynamic Seeding)
+                    const shuffled = [...allSymbols].sort(() => 0.5 - Math.random());
+                    const uniqueBasket = [...new Set(shuffled.slice(0, 5).map(s => s.symbol))];
+
+                    // Always ensure NIFTY is included as the primary focus
+                    if (!uniqueBasket.includes('NIFTY')) {
+                        uniqueBasket[0] = 'NIFTY';
+                    }
+
+                    // Fetch first one immediately for the main display
+                    const startTime = performance.now();
+                    const firstRes = await getPrediction(uniqueBasket[0], '1h');
+                    const endTime = performance.now();
+                    setLatency(Math.round(endTime - startTime));
+                    setData(firstRes.data);
+
+                    // Background seed the rest with a small delay to prevent DB race conditions
+                    const seedRemaining = async () => {
+                        for (const sym of uniqueBasket.slice(1)) {
+                            await new Promise(resolve => setTimeout(resolve, 800));
+                            try {
+                                await getPrediction(sym, '1h');
+                            } catch (e) {
+                                console.warn(`Seed failed for ${sym}`, e);
+                            }
+                        }
+                        refreshHistory();
+                    };
+                    seedRemaining();
+                }
+            } catch (e) {
+                console.warn("Auto-predict failed (Backend likely starting up):", e);
+            }
+
+            // Refresh history and trades
+            await Promise.all([refreshHistory(), refreshData()]);
+            setTimeout(() => setInitialLoading(false), 800);
+        }
+        init();
     }, []);
 
     const refreshHistory = async () => {
@@ -54,50 +144,66 @@ const Dashboard = () => {
         }
     };
 
+
+
     const handlePredict = async () => {
         setLoading(true);
         try {
+            const startTime = performance.now();
             const res = await getPrediction(symbol, interval);
+            const endTime = performance.now();
+            setLatency(Math.round(endTime - startTime));
             setData(res.data);
             refreshHistory();
+            refreshData();
         } catch (err) {
             console.error("Prediction failed, using mock data for UI");
         }
         setLoading(false);
     };
 
-    // Helper for sentiment color
     const getSentimentColor = (sentiment) => {
         if (sentiment === 'BULLISH') return 'text-green-400 from-green-400 to-emerald-600';
         if (sentiment === 'BEARISH') return 'text-red-400 from-red-400 to-rose-600';
         return 'text-yellow-400 from-yellow-400 to-amber-600';
     };
 
+    if (initialLoading) return <LoadingScreen message="Initializing real-time trade engines..." />;
+
     return (
-        <div className="w-full pb-20 space-y-8">
-            {/* Hero Section */}
-            <div className="flex flex-col md:flex-row justify-between items-end gap-6">
+        <div className="w-full pb-20 space-y-8 font-sans">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
-                    <h1 className="text-3xl font-bold text-white mb-2">Welcome back, Vishnu 👋</h1>
-                    <p className="text-gray-400">Market is <span className="text-green-400 font-medium">Open</span> • Volatility is <span className="text-yellow-400 font-medium">Moderate</span></p>
+                    <div className="flex items-center gap-4">
+                        <p className="text-gray-400 text-sm">
+                            Market is <span className={`${marketOpen ? 'text-green-500' : 'text-red-500'} font-bold`}>
+                                {marketOpen ? 'OPEN' : 'CLOSED'}
+                            </span>
+                        </p>
+                        <div className="w-1 h-1 rounded-full bg-gray-600" />
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+                            <span className="text-xs font-bold text-blue-400 uppercase tracking-widest">Alpha Stream Live</span>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Control Bar */}
-                <div className="glass-panel p-2 rounded-xl flex items-center gap-2">
-                    <div className="relative">
+                <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-2">
+                    <div className="relative group">
                         <input
                             value={symbol}
                             onChange={(e) => setSymbol(e.target.value)}
-                            className="bg-gray-800/50 text-white pl-4 pr-12 py-2 rounded-lg border border-white/5 focus:border-blue-500/50 outline-none w-40 font-mono text-sm uppercase transition-all"
+                            className="bg-gray-900/50 text-white pl-4 pr-12 py-2.5 rounded-xl border border-white/5 focus:border-blue-500/50 outline-none w-44 font-mono text-sm uppercase transition-all"
                             placeholder="SYMBOL"
                         />
-                        <span className="absolute right-3 top-2.5 text-xs text-gray-500 font-bold">NSE</span>
+                        <span className="absolute right-4 top-3 text-[10px] text-gray-500 font-black tracking-widest group-focus-within:text-blue-500 transition-colors">NSE</span>
                     </div>
 
                     <select
                         value={interval}
                         onChange={(e) => setInterval(e.target.value)}
-                        className="bg-gray-800/50 text-white px-4 py-2 rounded-lg border border-white/5 focus:border-blue-500/50 outline-none text-sm appearance-none cursor-pointer hover:bg-gray-700/50 transition-colors"
+                        className="bg-gray-900/50 text-white px-4 py-2.5 rounded-xl border border-white/5 focus:border-blue-500/50 outline-none text-sm cursor-pointer hover:bg-gray-800 transition-colors appearance-none pr-8 relative"
                     >
                         <option value="15m">15m</option>
                         <option value="1h">1h</option>
@@ -108,234 +214,431 @@ const Dashboard = () => {
                     <button
                         onClick={handlePredict}
                         disabled={loading}
-                        className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
                     >
                         {loading ? <Clock className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-current" />}
-                        {loading ? 'Analyzing...' : 'Run'}
+                        {loading ? 'ANALYZING' : 'RUN'}
                     </button>
                 </div>
             </div>
 
-            {/* Main Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                {/* 1. Market Sentiment Card */}
-                <div className="glass-card p-0 rounded-2xl overflow-hidden relative group">
-                    <div className="absolute top-0 right-0 p-30 bg-gradient-to-br from-blue-500/10 to-transparent rounded-bl-full opacity-50"></div>
-                    <div className="p-6 relative z-10">
-                        <div className="flex justify-between items-start mb-6">
-                            <div>
-                                <h3 className="text-sm font-medium text-gray-400 bg-gray-800/50 px-3 py-1 rounded-full w-fit mb-4 backdrop-blur-sm border border-white/5">AI Sentiment</h3>
-                                <div className={`text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${getSentimentColor(displayData.prediction)} tracking-tighter`}>
-                                    {displayData.prediction}
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Confidence</p>
-                                <div className="text-3xl font-mono font-bold text-white">{(displayData.confidence * 100).toFixed(0)}%</div>
-                            </div>
-                        </div>
-
-                        <div className="glass-panel p-4 rounded-xl border-l-4 border-blue-500/50">
-                            <p className="text-sm text-gray-300 italic leading-relaxed">
-                                "{displayData.reasoning || 'Analyzing market structure...'}"
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 2. Technical Signals Card */}
-                <div className="glass-card p-6 rounded-2xl relative">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                            <Activity className="w-5 h-5 text-blue-400" />
-                            Technical Radar
-                        </h3>
-                        <span className="text-xs font-mono text-gray-500">{symbol} @ ₹{displayData.current_price.toLocaleString()}</span>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-default group">
-                            <span className="text-sm text-gray-400">RSI (14)</span>
-                            <div className="flex items-center gap-2">
-                                <div className="w-24 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                                    <div
-                                        className={`h-full rounded-full ${displayData.rsi > 70 ? 'bg-red-500' : displayData.rsi < 30 ? 'bg-green-500' : 'bg-blue-500'}`}
-                                        style={{ width: `${displayData.rsi}%` }}
-                                    ></div>
-                                </div>
-                                <span className="font-mono font-medium text-white min-w-[3ch]">{displayData.rsi}</span>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-default">
-                            <span className="text-sm text-gray-400">MACD</span>
-                            <span className={`font-mono font-medium ${displayData.macd > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {displayData.macd > 0 ? '+' : ''}{displayData.macd}
-                            </span>
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-default">
-                            <span className="text-sm text-gray-400">Trend (SMA 50)</span>
-                            <span className={`text-sm font-medium flex items-center gap-1 ${displayData.current_price > displayData.sma_50 ? 'text-green-400' : 'text-red-400'}`}>
-                                {displayData.current_price > displayData.sma_50 ? <TrendingUp className="w-3 h-3" /> : <TrendingUp className="w-3 h-3 rotate-180" />}
-                                {displayData.current_price > displayData.sma_50 ? 'Bullish' : 'Bearish'}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 3. Volatility / Payoff Chart */}
-                <div className="glass-card p-6 rounded-2xl flex flex-col">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-white">Payoff Projection</h3>
-                        <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-1 rounded border border-blue-500/20 font-mono">
-                            {displayData.strike} {displayData.option_type}
-                        </span>
-                    </div>
-                    <div className="flex-1 min-h-[160px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={displayData.payoff_graph}>
-                                <defs>
-                                    <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                                <XAxis dataKey="spot" stroke="#6b7280" fontSize={10} axisLine={false} tickLine={false} />
-                                <YAxis stroke="#6b7280" fontSize={10} axisLine={false} tickLine={false} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px', color: '#fff' }}
-                                    itemStyle={{ color: '#fff' }}
-                                />
-                                <Area type="monotone" dataKey="profit" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorProfit)" />
-                                <Line type="step" data={displayData.payoff_graph} dataKey={() => 0} stroke="#ef4444" strokeDasharray="5 5" strokeWidth={1} dot={false} />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* 4. HFT Risk Parameters - Full Width */}
-                <div className="lg:col-span-3 glass-card rounded-2xl overflow-hidden border border-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.15)] relative">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500"></div>
-
-                    <div className="p-6 md:p-8">
-                        <div className="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4">
-                            <div>
-                                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                                    <Zap className="w-6 h-6 text-yellow-500 fill-current animate-pulse" />
-                                    HFT Risk Engine <span className="text-base font-normal text-gray-500 ml-2 font-mono">v3.0.1</span>
-                                </h2>
-                                <p className="text-gray-400 text-sm mt-1">Real-time position sizing and automated risk management</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <span className="flex items-center gap-2 text-xs font-mono text-green-400 bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                                    ACTIVE
+            {/* Premium Apple-Style Status Strip */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-0 glass-panel rounded-3xl p-1 mb-10 overflow-hidden border-white/10 animate-slide-up">
+                {[
+                    {
+                        label: 'Net P&L',
+                        value: `₹${Math.round(performance?.total_pnl || 0).toLocaleString()}`,
+                        change: performance ? `${((performance.total_pnl / performance.initial_balance) * 100).toFixed(2)}% ROI` : 'Calculated on load',
+                        color: (performance?.total_pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400',
+                        chart: <Sparkline data={sparklineData} color={(performance?.total_pnl || 0) >= 0 ? "#4ade80" : "#f87171"} />
+                    },
+                    {
+                        label: 'Win Rate',
+                        value: performance?.win_rate || '0.0%',
+                        change: performance?.total_trades > 0 ? `${performance.total_trades} Closed Trades` : 'Awaiting data',
+                        color: 'text-white',
+                        chart: <Sparkline data={sparklineData} color="#3b82f6" />
+                    },
+                    {
+                        label: 'Active Exposure',
+                        value: `₹${Math.round(performance?.active_exposure || 0).toLocaleString()}`,
+                        change: `${performance?.active_units || 0} Open Units`,
+                        color: 'text-white',
+                        chart: <Sparkline data={sparklineData} color="#a855f7" />
+                    }
+                ].map((stat, i) => (
+                    <div key={i} className={`p-8 flex flex-col items-center justify-center relative ${i < 2 ? 'border-r border-white/5' : ''}`}>
+                        <span className="caption mb-3">{stat.label}</span>
+                        <div className="flex items-center gap-6">
+                            <div className="flex flex-col items-center">
+                                <h2 className={`text-3xl font-mono font-bold tracking-tighter ${stat.color}`}>{stat.value}</h2>
+                                <span className="text-[10px] font-bold text-gray-500 mt-2 flex items-center gap-1.5">
+                                    {stat.change}
                                 </span>
                             </div>
+                            <div className="hidden lg:block">
+                                {stat.chart}
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-12 gap-8">
+                {/* Neural Consensus Card - Premium Redesign */}
+                <div className="col-span-12 lg:col-span-8 glass-panel rounded-[2.5rem] p-10 relative overflow-hidden flex flex-col justify-between min-h-[400px] animate-slide-up stagger-1">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/5 blur-[120px] rounded-full translate-x-1/2 -translate-y-1/2" />
+
+                    <div className="relative z-10">
+                        <div className="flex justify-between items-start mb-12">
+                            <div>
+                                <p className="text-blue-500 text-[10px] font-black uppercase tracking-[4px] mb-2">Neural Consensus Engine</p>
+                                <h2 className="text-4xl font-black text-white tracking-tighter italic uppercase">Alpha Inference</h2>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Confidence Score</p>
+                                <p className="text-3xl font-mono font-bold text-white">{(displayData.confidence * 100).toFixed(1)}%</p>
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                            <div className="bg-gray-900/50 p-6 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-colors group">
-                                <p className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-2">Kelly Trade Size</p>
-                                <div className="text-4xl font-mono font-bold text-white group-hover:text-blue-400 transition-colors">
-                                    {(displayData.hft_risk?.risk_amount / 100).toFixed(1)}<span className="text-lg text-gray-500 ml-1">%</span>
+                        {/* Horizontal Confidence Spectrum */}
+                        <div className="space-y-6 mb-12">
+                            <div className="h-12 w-full rounded-2xl bg-gradient-to-r from-red-500/40 via-yellow-500/40 to-green-500/40 p-[1px] relative">
+                                <div className="absolute inset-0 bg-gray-950/40 rounded-2xl backdrop-blur-sm" />
+                                <div className="absolute inset-0 flex items-center px-8 justify-between opacity-30">
+                                    <span className="text-[9px] font-black text-white uppercase italic">Bearish</span>
+                                    <span className="text-[9px] font-black text-white uppercase italic">Neutral Vector</span>
+                                    <span className="text-[9px] font-black text-white uppercase italic">Bullish</span>
                                 </div>
-                                <div className="mt-2 text-xs text-gray-400 flex items-center gap-1">
-                                    <div className="w-16 h-1 bg-gray-700 rounded-full overflow-hidden">
-                                        <div className="h-full bg-blue-500" style={{ width: `${(displayData.hft_risk?.risk_amount / 100) * 10}%` }}></div>
+
+                                {/* Movement Indicator */}
+                                <div
+                                    className="absolute top-1/2 -translate-y-1/2 w-1 h-16 bg-white shadow-[0_0_20px_rgba(255,255,255,0.5)] z-20 transition-all duration-1000 ease-out flex items-center justify-center cursor-pointer group"
+                                    style={{ left: `${(displayData.confidence * 100)}%` }}
+                                >
+                                    <div className="w-4 h-4 rounded-full bg-white shadow-xl shadow-white/20" />
+                                    <div className="absolute -top-10 bg-white text-gray-950 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+                                        LTP Locked
                                     </div>
-                                    of capital
                                 </div>
                             </div>
 
-                            <div className="bg-gray-900/50 p-6 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-colors">
-                                <p className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-2">Positions</p>
-                                <div className="text-4xl font-mono font-bold text-white">
-                                    {displayData.hft_risk?.quantity}
-                                </div>
-                                <p className="mt-2 text-xs text-gray-400">Risk-weighted units</p>
+                            {/* Probability/Payoff Curve */}
+                            <div className="h-48 w-full relative z-10 -mt-4 mb-2">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={displayData.payoff_graph || []}>
+                                        <defs>
+                                            <linearGradient id="payoffGradient" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff03" vertical={false} />
+                                        <XAxis
+                                            dataKey="spot"
+                                            hide
+                                        />
+                                        <YAxis
+                                            hide
+                                            domain={['auto', 'auto']}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#000', border: '1px solid #ffffff10', borderRadius: '12px', fontSize: '10px' }}
+                                            itemStyle={{ color: '#fff' }}
+                                            labelStyle={{ display: 'none' }}
+                                        />
+                                        <Area
+                                            type="monotone"
+                                            dataKey="profit"
+                                            stroke="#3b82f6"
+                                            fillOpacity={1}
+                                            fill="url(#payoffGradient)"
+                                            strokeWidth={3}
+                                            animationDuration={1500}
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
                             </div>
 
-                            <div className="bg-gray-900/50 p-6 rounded-2xl border border-white/5 hover:border-red-500/30 transition-colors relative overflow-hidden">
-                                <div className="absolute -right-4 -top-4 w-20 h-20 bg-red-500/10 blur-xl rounded-full"></div>
-                                <p className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-2">
-                                    <AlertTriangle className="w-3 h-3" />
-                                    Stop Loss
+                            <div className="flex justify-between items-center">
+                                <p className="text-xs text-gray-500 font-medium italic">
+                                    "{displayData.reasoning || "Analyzing institutional sentiment for directional bias..."}"
                                 </p>
-                                <div className="text-3xl font-mono font-bold text-red-400">
-                                    ₹{displayData.hft_risk?.stop_loss}
+                                <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                    <span className="text-[10px] font-black text-blue-500 uppercase">Real-time Stream</span>
                                 </div>
-                                <p className="mt-2 text-xs text-gray-400">Dynamic ATR Trail</p>
-                            </div>
-
-                            <div className="bg-gray-900/50 p-6 rounded-2xl border border-white/5 hover:border-green-500/30 transition-colors relative overflow-hidden">
-                                <div className="absolute -right-4 -top-4 w-20 h-20 bg-green-500/10 blur-xl rounded-full"></div>
-                                <p className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-2 flex items-center gap-2">
-                                    <TrendingUp className="w-3 h-3" />
-                                    Take Profit
-                                </p>
-                                <div className="text-3xl font-mono font-bold text-green-400">
-                                    ₹{displayData.hft_risk?.take_profit}
-                                </div>
-                                <p className="mt-2 text-xs text-gray-400">Risk/Reward 1:1.5</p>
                             </div>
                         </div>
+                    </div>
+
+                    <div className="pt-8 border-t border-white/5 flex items-center justify-between relative z-10">
+                        <div className="flex items-center gap-6">
+                            <div>
+                                <p className="text-[9px] font-black text-gray-600 uppercase mb-0.5">Vector Status</p>
+                                <p className={`text-xs font-bold ${data ? 'text-green-400' : 'text-gray-400'}`}>
+                                    {data ? 'Stream Synchronized' : 'Initialization Mode'}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-black text-gray-600 uppercase mb-0.5">Latency</p>
+                                <p className="text-xs font-bold text-blue-400 font-mono">{latency}ms</p>
+                            </div>
+                        </div>
+                        <button
+                            className="px-6 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-[10px] font-black text-white uppercase tracking-widest transition-all"
+                            onClick={() => alert("Model Weights access restricted. (Enterprise Plan Required)")}
+                        >
+                            View Model Weights
+                        </button>
+                    </div>
+                </div>
+
+                {/* Radar Analysis Card - Refined */}
+                <div className="col-span-12 lg:col-span-4 glass-panel rounded-[2.5rem] p-10 flex flex-col relative overflow-hidden animate-slide-up stagger-2">
+                    <div className="flex items-center gap-4 mb-10">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+                            <Activity size={20} />
+                        </div>
+                        <h3 className="headline">Radar Analysis</h3>
+                    </div>
+
+                    <div className="space-y-8 flex-1">
+                        {[
+                            { label: 'RSI (14)', value: displayData.rsi, type: 'progress', color: 'text-blue-400' },
+                            { label: 'Volatility Ratio', value: displayData.vol_ratio, type: 'text', color: 'text-green-400' },
+                            { label: 'MACD (Hist)', value: displayData.macd, type: 'text', color: 'text-white' },
+                            { label: 'Trend Strength', value: trendStrength, type: 'progress', color: 'text-blue-400' }
+                        ].map((item, i) => (
+                            <div key={i} className="flex flex-col gap-3">
+                                <div className="flex justify-between items-center caption">
+                                    {item.label}
+                                    {item.type !== 'progress' && <span className={`font-mono font-bold ${item.color}`}>{item.value}</span>}
+                                </div>
+                                {item.type === 'progress' && (
+                                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden relative">
+                                        <div
+                                            className="h-full bg-blue-600 rounded-full transition-all duration-1000"
+                                            style={{ width: `${item.value}%` }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    <button
+                        onClick={() => setIsAuditOpen(true)}
+                        className="w-full py-4 mt-10 rounded-2xl bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] transition-all font-bold text-[10px] uppercase tracking-[2px] flex items-center justify-center gap-2 group"
+                    >
+                        <Maximize2 size={12} className="group-hover:rotate-12 transition-transform" />
+                        Full Technical Audit
+                    </button>
+                </div>
+
+                {/* Trading Terminal - Span 4 */}
+                <div className="col-span-12 lg:col-span-4">
+                    <TradingTerminal
+                        symbol={symbol}
+                        currentPrice={displayData.current_price}
+                        onTradeSuccess={() => {
+                            refreshData();
+                            refreshHistory();
+                        }}
+                    />
+                </div>
+
+                {/* HFT Risk Engine - Full Width Enhanced (data-driven from hft_risk) */}
+                <div className="col-span-12 glass-card rounded-[3rem] p-1 items-center bg-gradient-to-r from-blue-500/20 via-purple-500/10 to-transparent">
+                    <div className="bg-gray-950 rounded-[2.9rem] p-10">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
+                            <div>
+                                <h2 className="text-4xl font-bold tracking-tighter mb-2">HFT Risk Management</h2>
+                                <p className="text-gray-500 font-medium">Auto-adaptive risk parameters synchronized with broker APIs.</p>
+                            </div>
+                            <div className="glass-panel px-6 py-3 rounded-2xl flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+                                    <span className="text-xs font-black tracking-widest text-white uppercase">Engine Live</span>
+                                </div>
+                                <div className="w-px h-4 bg-white/10" />
+                                <span className="text-xs font-mono font-bold text-blue-400 italic">Connected</span>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                            {[
+                                {
+                                    label: 'Kelly Position',
+                                    value: `₹${Math.round(displayData?.hft_risk?.risk_amount || 0).toLocaleString()}`,
+                                    desc: displayData.confidence > 0.6 ? 'Aggressive Allocation (Kelly+)' : 'Conserved Allocation (Kelly-)',
+                                    color: 'text-blue-400'
+                                },
+                                {
+                                    label: 'Risk Units',
+                                    value: `${displayData?.hft_risk?.quantity || 0}`,
+                                    desc: `Exposure adjusted for ${displayData.rsi < 30 ? 'Oversold' : displayData.rsi > 70 ? 'Overbought' : 'Neutral'} state`,
+                                    color: 'text-white'
+                                },
+                                {
+                                    label: 'Stop Loss',
+                                    value: displayData?.hft_risk?.stop_loss ? `₹${displayData.hft_risk.stop_loss.toLocaleString()}` : 'N/A',
+                                    desc: 'Dynamic ATR Protection',
+                                    color: 'text-red-400'
+                                },
+                                {
+                                    label: 'Take Profit',
+                                    value: displayData?.hft_risk?.take_profit ? `₹${displayData.hft_risk.take_profit.toLocaleString()}` : 'N/A',
+                                    desc: 'Smart Target Locked',
+                                    color: 'text-green-400'
+                                }
+                            ].map((risk, i) => (
+                                <div key={i} className="flex flex-col gap-2 p-6 rounded-3xl bg-white/5 border border-white/5 hover:border-white/10 transition-all">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{risk.label}</p>
+                                    <div className={`text-3xl font-mono font-bold leading-none ${risk.color}`}>{risk.value}</div>
+                                    <p className="text-[10px] text-gray-600 font-bold">{risk.desc}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Open Positions Widget - Span 12 */}
+                {activeTrades.length > 0 && (
+                    <div className="col-span-12 glass-panel rounded-[2.5rem] p-10 border-white/5 mb-8">
+                        <div className="flex justify-between items-end mb-10">
+                            <div>
+                                <h3 className="text-2xl font-bold mb-1">Active Vectors</h3>
+                                <p className="text-gray-500 text-sm">Real-time exposure across selected markets.</p>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="text-left text-[10px] font-black uppercase tracking-[2px] text-gray-600 border-b border-white/5">
+                                        <th className="pb-6 pl-4">Instrument</th>
+                                        <th className="pb-6">Strategy</th>
+                                        <th className="pb-6">Side</th>
+                                        <th className="pb-6">Entry</th>
+                                        <th className="pb-6 text-right pr-4">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activeTrades.map((trade, i) => (
+                                        <tr key={i} className="group hover:bg-white/[0.02] transition-colors border-b border-white/5">
+                                            <td className="py-6 pl-4">
+                                                <div className="text-sm font-bold text-white uppercase tracking-tighter">{trade.symbol}</div>
+                                                <div className="text-[10px] text-gray-500 font-bold tracking-widest font-mono uppercase">QUANTITY: {trade.quantity}</div>
+                                            </td>
+                                            <td className="py-6">
+                                                <span className="text-[10px] font-black px-3 py-1 rounded-full bg-white/5 border border-white/5 text-gray-400 uppercase">
+                                                    {trade.strategy || "MANUAL"}
+                                                </span>
+                                            </td>
+                                            <td className="py-6">
+                                                <span className={`text-[10px] font-black uppercase tracking-widest ${trade.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {trade.side}
+                                                </span>
+                                            </td>
+                                            <td className="py-6">
+                                                <div className="text-sm font-mono font-bold text-white">₹{trade.entry_price.toLocaleString()}</div>
+                                            </td>
+                                            <td className="py-6 text-right pr-4">
+                                                <button
+                                                    onClick={async () => {
+                                                        if (window.confirm(`Are you sure you want to close ${trade.symbol}?`)) {
+                                                            const tid = trade.id || trade._id;
+                                                            if (!tid) {
+                                                                alert("Critical Error: Trade ID missing");
+                                                                return;
+                                                            }
+                                                            try {
+                                                                await closeTrade(tid);
+                                                                refreshData();
+                                                            } catch (err) {
+                                                                alert("Closure failed: " + (err.response?.data?.detail || err.message));
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="px-4 py-1.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-lg text-[10px] font-black transition-all"
+                                                >
+                                                    CLOSE
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {/* Performance History - Span 12 */}
+                <div className="col-span-12 glass-panel rounded-[2.5rem] p-10 border-white/5">
+                    <div className="flex justify-between items-end mb-10">
+                        <div>
+                            <h3 className="text-2xl font-bold mb-1">Alpha Stream</h3>
+                            <p className="text-gray-500 text-sm">Real-time execution log and performance attribution.</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => navigate('/history')}
+                                className="px-5 py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-blue-500 hover:text-white transition-all"
+                            >
+                                Journal Full Audit
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="text-left text-[10px] font-black uppercase tracking-[2px] text-gray-600 border-b border-white/5">
+                                    <th className="pb-6 pl-4">Timestamp</th>
+                                    <th className="pb-6">Instrument</th>
+                                    <th className="pb-6">Strategy</th>
+                                    <th className="pb-6">Side</th>
+                                    <th className="pb-6 text-right pr-4">P&L Attribution</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {tradeHistory.length > 0 ? tradeHistory.slice(0, 5).map((trade, i) => (
+                                    <tr key={i} className="group hover:bg-white/[0.02] transition-colors border-b border-white/5">
+                                        <td className="py-6 pl-4">
+                                            <div className="text-xs font-mono font-bold text-gray-400">
+                                                {new Date(trade.exit_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                            <div className="text-[9px] text-gray-600 font-bold">
+                                                {new Date(trade.exit_timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            </div>
+                                        </td>
+                                        <td className="py-6">
+                                            <div className="text-sm font-bold text-white uppercase tracking-tighter">{trade.symbol}</div>
+                                            <div className="text-[10px] text-gray-500 font-bold tracking-widest font-mono uppercase">{trade.status}</div>
+                                        </td>
+                                        <td className="py-6">
+                                            <span className="text-[10px] font-black px-3 py-1 rounded-full bg-white/5 border border-white/5 text-gray-400 uppercase">
+                                                {trade.strategy}
+                                            </span>
+                                        </td>
+                                        <td className="py-6">
+                                            <span className={`text-[10px] font-black uppercase tracking-widest ${trade.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
+                                                {trade.side}
+                                            </span>
+                                        </td>
+                                        <td className="py-6 text-right pr-4">
+                                            <div className={`text-sm font-mono font-bold ${trade.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                {trade.pnl >= 0 ? '+' : '-'}₹{Math.abs(trade.pnl).toLocaleString()}
+                                            </div>
+                                            <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">REALIZED ALPHA</div>
+                                        </td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td colSpan="5" className="py-20 text-center text-gray-600 font-mono text-[10px] uppercase tracking-widest opacity-50">
+                                            Awaiting Vector Stream Initialization...
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
-            {/* Recent Signals Table */}
-            <div className="glass-panel p-6 rounded-2xl">
-                <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-gray-400" />
-                    Recent Signals
-                </h3>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="border-b border-gray-700/50 text-xs text-gray-500 uppercase tracking-wider font-semibold">
-                                <th className="pb-4 pl-4">Time</th>
-                                <th className="pb-4">Asset</th>
-                                <th className="pb-4">Sentiment</th>
-                                <th className="pb-4">Entry</th>
-                                <th className="pb-4">Strategy</th>
-                            </tr>
-                        </thead>
-                        <tbody className="text-sm">
-                            {history.length > 0 ? history.map((h, i) => (
-                                <tr key={i} className="group border-b border-gray-800/50 hover:bg-white/5 transition-colors">
-                                    <td className="py-4 pl-4 font-mono text-gray-400">
-                                        {new Date(h.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </td>
-                                    <td className="py-4 font-bold text-white group-hover:text-blue-400 transition-colors">{h.symbol}</td>
-                                    <td className="py-4">
-                                        <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-wide ${h.predicted_direction === 'BULLISH' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                                            {h.predicted_direction}
-                                        </span>
-                                    </td>
-                                    <td className="py-4 font-mono text-white">₹{h.current_price.toFixed(2)}</td>
-                                    <td className="py-4 text-gray-400">{h.suggested_strategy}</td>
-                                </tr>
-                            )) : (
-                                <tr>
-                                    <td colSpan="5" className="py-12 text-center text-gray-500 italic">
-                                        No recent signals found. Market is quiet...
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <footer className="text-center pt-8">
-                <p className="text-[10px] text-gray-600 uppercase tracking-widest font-medium">
-                    TradeX AI • HFT System v2.1 • Latency: 4ms
+            <footer className="text-center pt-20">
+                <p className="text-[10px] text-gray-700 font-black uppercase tracking-[5px]">
+                    TradeX Intelligence System • Powered by Quantum Strategy Group
                 </p>
             </footer>
+
+            <TechnicalAuditModal
+                isOpen={isAuditOpen}
+                onClose={() => setIsAuditOpen(false)}
+                data={displayData}
+                symbol={symbol}
+            />
         </div>
     );
 };

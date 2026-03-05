@@ -1,22 +1,54 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { getPerformance } from '../../api';
 import {
     Activity,
     TrendingUp,
-    ChevronRight
+    LogOut,
+    PieChart,
+    LineChart,
+    RefreshCcw,
+    ScrollText,
+    Settings
 } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
 
 const navItems = [
     { icon: Activity, label: 'Dashboard', path: '/dashboard' },
-    { icon: Activity, label: 'Live Signals', path: '/signals', badge: 'LIVE' },
-    { icon: Activity, label: 'Portfolio', path: '/portfolio' },
-    { icon: Activity, label: 'Analytics', path: '/analytics' },
-    { icon: Activity, label: 'Backtesting', path: '/backtest' },
-    { icon: Activity, label: 'History', path: '/history' },
-    { icon: Activity, label: 'Settings', path: '/settings' },
+    { icon: TrendingUp, label: 'Live Signals', path: '/signals', badge: 'LIVE' },
+    { icon: PieChart, label: 'Portfolio', path: '/portfolio' },
+    { icon: LineChart, label: 'Analytics', path: '/analytics' },
+    { icon: RefreshCcw, label: 'Backtesting', path: '/backtest' },
+    { icon: ScrollText, label: 'History', path: '/history' },
+    { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 
 const Sidebar = ({ isOpen, closeSidebar }) => {
+    const navigate = useNavigate();
+    const [performance, setPerformance] = useState(null);
+
+    useEffect(() => {
+        const fetchPerf = async () => {
+            try {
+                const res = await getPerformance();
+                setPerformance(res.data);
+            } catch (err) {
+                console.warn("Sidebar perf fetch failed");
+            }
+        };
+        fetchPerf();
+        const interval = setInterval(fetchPerf, 60000); // Sync every minute
+        return () => clearInterval(interval);
+    }, []);
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        navigate('/');
+        if (closeSidebar) closeSidebar();
+    };
+
+    const totalEquity = performance?.total_equity || 1000000;
+    const pnlPercent = performance ? ((performance.total_pnl / performance.initial_balance) * 100).toFixed(2) : "0.00";
+
     return (
         <>
             {/* Overlay for mobile */}
@@ -27,83 +59,82 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                 />
             )}
 
-            <aside className={`
-        fixed lg:static inset-y-0 left-0 z-50
-        w-72 glass-panel border-r-0 lg:border-r border-white/5
-        transform transition-all duration-300 ease-out
-        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        flex flex-col h-screen
-      `}>
-                {/* Logo Area */}
-                <div className="p-6 flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                        <TrendingUp className="w-6 h-6 text-white" />
-                    </div>
+            <aside className={`fixed lg:sticky lg:top-0 lg:h-screen left-0 z-50 w-[260px] glass-panel border-r border-white/5 transform transition-all duration-500 ease-out flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+                {/* Logo Area - Apple Inspired Wordmark */}
+                <div className="h-[72px] px-8 flex items-center justify-between shrink-0">
                     <div>
-                        <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 tracking-tight">
+                        <h1 className="text-xl font-bold text-white tracking-[-0.5px]">
                             TradeX<span className="text-blue-500">.AI</span>
                         </h1>
-                        <div className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse box-shadow-glow"></span>
-                            <span className="text-[10px] text-gray-400 font-medium tracking-wider uppercase">Systems Online</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                            <div className={`w-[6px] h-[6px] rounded-full ${performance ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
+                            <span className="text-[10px] text-gray-500 font-medium tracking-wide">
+                                {performance ? 'Systems online' : 'Connecting...'}
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                {/* Equity Card */}
-                <div className="px-6 mb-8">
-                    <div className="glass-card p-5 rounded-2xl relative overflow-hidden group">
-                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                        <p className="text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider relative z-10">Total Equity</p>
-                        <h3 className="text-2xl font-bold text-white font-mono mb-2 relative z-10">₹10,12,450</h3>
-                        <div className="flex items-center gap-2 relative z-10">
-                            <div className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                                <TrendingUp className="w-3 h-3" />
-                                +1.24%
-                            </div>
-                            <span className="text-xs text-gray-500">Today</span>
+                {/* Total Equity Minimal Card */}
+                <div className="px-5 mb-8">
+                    <div className="bg-white/[0.02] border border-white/[0.06] p-4 rounded-xl group transition-all duration-300">
+                        <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Total equity</p>
+                        <h3 className="text-2xl font-semibold text-white font-mono tracking-tight mb-2">
+                            ₹{Math.round(performance?.total_equity || 0).toLocaleString()}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                            <span className={`flex items-center gap-1 text-[11px] font-bold ${parseFloat(pnlPercent) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                <TrendingUp size={10} /> {parseFloat(pnlPercent) >= 0 ? '+' : ''}{pnlPercent}% Total
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                {/* Navigation */}
-                <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-                    <p className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Menu</p>
+                {/* Navigation - Segmented & Minimal */}
+                <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
                     {navItems.map((item) => (
                         <NavLink
                             key={item.path}
                             to={item.path}
                             onClick={closeSidebar}
                             className={({ isActive }) => `
-                  group flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
-                  ${isActive
-                                    ? 'bg-blue-600 shadow-lg shadow-blue-500/25 text-white'
-                                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                group flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative
+                                ${isActive
+                                    ? 'bg-white/5 text-white'
+                                    : 'text-gray-500 hover:text-white hover:bg-white/[0.03]'
                                 }
-                `}
+                            `}
                         >
-                            <div className="flex items-center gap-3">
-                                <item.icon className={`w-[18px] h-[18px] transition-transform duration-200 ${!isActive && 'group-hover:scale-110'}`} />
-                                <span>{item.label}</span>
-                            </div>
-                            {item.badge && (
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${isActive
-                                        ? 'bg-white/20 text-white border-transparent'
-                                        : 'bg-red-500/20 text-red-400 border-red-500/20 animate-pulse'
-                                    }`}>
-                                    {item.badge}
-                                </span>
+                            {({ isActive }) => (
+                                <>
+                                    {/* Active Sidebar Indicator */}
+                                    {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] bg-blue-500 rounded-r-full" />}
+
+                                    <div className="flex items-center gap-3.5">
+                                        <item.icon size={20} className={`shrink-0 transition-colors ${isActive ? 'text-blue-500' : 'text-gray-600 group-hover:text-gray-400'}`} />
+                                        <span className="tracking-tight">{item.label}</span>
+                                    </div>
+
+                                    {item.badge && (
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-[4px] h-[4px] rounded-full bg-green-500 animate-pulse" />
+                                            <span className="text-[10px] font-black text-green-500/80 uppercase tracking-tighter">Live</span>
+                                        </div>
+                                    )}
+                                </>
                             )}
-                            <ChevronRight className={`w-4 h-4 transition-opacity ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`} />
                         </NavLink>
                     ))}
                 </nav>
 
-                {/* Footer */}
-                <div className="p-6 border-t border-white/5">
-                    <button className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 w-full transition-all group">
-                        <Activity className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                        Sign Out
+                {/* Sign Out - Dedicated Bottom Section */}
+                <div className="p-6 mt-auto">
+                    <button
+                        onClick={handleLogout}
+                        className="flex items-center gap-3.5 px-5 py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-400 hover:bg-white/[0.03] w-full transition-all group"
+                    >
+                        <LogOut size={18} className="transition-transform group-hover:-translate-x-1" />
+                        <span className="tracking-tight">Sign out</span>
                     </button>
                 </div>
             </aside>
