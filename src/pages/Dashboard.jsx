@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, ArrowDownRight, Activity, TrendingUp, AlertTriangle, Zap, Clock, Wallet, BarChart3, History, Maximize2 } from 'lucide-react';
-import { getPrediction, getMyHistory, closeTrade, getNSESymbols } from '../api';
+import { ArrowUpRight, ArrowDownRight, Activity, TrendingUp, AlertTriangle, Zap, Clock, Wallet, BarChart3, History, Maximize2, Globe } from 'lucide-react';
+import { getPrediction, getMyHistory, closeTrade, getSymbols } from '../api';
 import { useData } from '../context/DataContext';
 import LoadingScreen from '../components/shared/LoadingScreen';
 import TradingTerminal from '../components/dashboard/TradingTerminal';
@@ -21,6 +21,7 @@ const Sparkline = ({ data, color }) => (
 const Dashboard = () => {
     const { performance, activeTrades, tradeHistory, refreshData } = useData();
     const [symbol, setSymbol] = useState('NIFTY');
+    const [selectedExchange, setSelectedExchange] = useState('nse');
     const [interval, setInterval] = useState('1h');
     const [data, setData] = useState(null);
     const [history, setHistory] = useState([]);
@@ -90,7 +91,7 @@ const Dashboard = () => {
         const init = async () => {
             try {
                 // Fetch the full list of symbols
-                const symbolsRes = await getNSESymbols();
+                const symbolsRes = await getSymbols(selectedExchange);
                 const allSymbols = symbolsRes.data;
 
                 if (allSymbols && allSymbols.length > 0) {
@@ -98,14 +99,18 @@ const Dashboard = () => {
                     const shuffled = [...allSymbols].sort(() => 0.5 - Math.random());
                     const uniqueBasket = [...new Set(shuffled.slice(0, 5).map(s => s.symbol))];
 
-                    // Always ensure NIFTY is included as the primary focus
-                    if (!uniqueBasket.includes('NIFTY')) {
-                        uniqueBasket[0] = 'NIFTY';
-                    }
+                    // Set default symbol based on exchange if empty or changing exchange
+                    let primeSymbol = uniqueBasket[0];
+                    if (selectedExchange === 'nse') primeSymbol = 'NIFTY';
+                    else if (selectedExchange === 'us') primeSymbol = 'AAPL';
+                    else if (selectedExchange === 'japan') primeSymbol = '7203.T'; // Toyota
+                    else if (selectedExchange === 'bse') primeSymbol = 'RELIANCE.BO';
+
+                    setSymbol(primeSymbol);
 
                     // Fetch first one immediately for the main display
                     const startTime = performance.now();
-                    const firstRes = await getPrediction(uniqueBasket[0], '1h');
+                    const firstRes = await getPrediction(primeSymbol, '1h');
                     const endTime = performance.now();
                     setLatency(Math.round(endTime - startTime));
                     setData(firstRes.data);
@@ -133,7 +138,7 @@ const Dashboard = () => {
             setTimeout(() => setInitialLoading(false), 800);
         }
         init();
-    }, []);
+    }, [selectedExchange]);
 
     const refreshHistory = async () => {
         try {
@@ -191,13 +196,27 @@ const Dashboard = () => {
 
                 <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-2">
                     <div className="relative group">
+                        <select
+                            value={selectedExchange}
+                            onChange={(e) => setSelectedExchange(e.target.value)}
+                            className="bg-transparent text-white px-3 py-2.5 rounded-xl border border-transparent focus:border-blue-500/50 outline-none text-xs font-black uppercase tracking-widest cursor-pointer hover:bg-white/5 transition-colors appearance-none flex-shrink-0"
+                        >
+                            <option value="nse">NSE</option>
+                            <option value="bse">BSE</option>
+                            <option value="us">US</option>
+                            <option value="japan">JAP</option>
+                        </select>
+                        <Globe className="w-3 h-3 absolute right-1 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                    </div>
+
+                    <div className="relative group">
                         <input
                             value={symbol}
-                            onChange={(e) => setSymbol(e.target.value)}
+                            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
                             className="bg-gray-900/50 text-white pl-4 pr-12 py-2.5 rounded-xl border border-white/5 focus:border-blue-500/50 outline-none w-44 font-mono text-sm uppercase transition-all"
                             placeholder="SYMBOL"
                         />
-                        <span className="absolute right-4 top-3 text-[10px] text-gray-500 font-black tracking-widest group-focus-within:text-blue-500 transition-colors">NSE</span>
+                        <span className="absolute right-4 top-3 text-[10px] text-gray-500 font-black tracking-widest group-focus-within:text-blue-500 transition-colors uppercase">{selectedExchange}</span>
                     </div>
 
                     <select

@@ -37,8 +37,8 @@ const HistoryPage = () => {
     };
 
     const filteredTrades = trades.filter(trade =>
-        trade.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        trade.strategy.toLowerCase().includes(searchTerm.toLowerCase())
+        (trade.symbol || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (trade.strategy || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     if (loading) return <LoadingScreen message="Reconstructing execution timeline..." />;

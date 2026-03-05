@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { Bell, Search, Menu, Command } from 'lucide-react';
-import { getNSESymbols } from '../../api';
+import { Bell, Search, Menu, Command, Globe } from 'lucide-react';
+import { getSymbols } from '../../api';
 import { useData } from '../../context/DataContext';
 import React, { useState, useEffect, useRef } from 'react';
 
@@ -11,17 +11,19 @@ const Header = ({ toggleSidebar }) => {
     const [stockDatabase, setStockDatabase] = useState([]);
     const { user } = useData();
 
+    const [selectedExchange, setSelectedExchange] = useState('nse');
+
     useEffect(() => {
         const fetchSymbols = async () => {
             try {
-                const res = await getNSESymbols();
+                const res = await getSymbols(selectedExchange);
                 setStockDatabase(res.data);
             } catch (err) {
-                console.error("Failed to fetch symbols:", err);
+                console.error(`Failed to fetch symbols for ${selectedExchange}:`, err);
             }
         };
         fetchSymbols();
-    }, []);
+    }, [selectedExchange]);
 
     const getSimilarStocks = (query) => {
         if (!query) return [];
@@ -59,22 +61,38 @@ const Header = ({ toggleSidebar }) => {
 
             {/* Premium Apple-Style Search with Auto-suggest */}
             <div className="hidden md:flex flex-col relative group w-[420px] transition-all duration-500">
-                <div className="flex items-center relative">
-                    <Search className="w-4 h-4 absolute left-3.5 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => {
-                            setSearchQuery(e.target.value);
-                            setIsDropdownOpen(true);
-                        }}
-                        onFocus={() => setIsDropdownOpen(true)}
-                        placeholder="Search symbols (NIFTY, RELIANCE...)"
-                        className="w-full pl-10 pr-12 py-2.5 glass-input text-gray-300 placeholder-gray-600 focus:placeholder-gray-500 transition-all text-sm"
-                    />
-                    <div className="absolute right-3 flex items-center gap-1 text-[10px] text-gray-600 border border-gray-700/50 rounded px-1.5 py-0.5 pointer-events-none group-focus-within:opacity-0 transition-opacity">
-                        <Command className="w-2.5 h-2.5" />
-                        <span>K</span>
+                <div className="flex items-center relative gap-2">
+                    {/* Exchange Selector */}
+                    <select
+                        value={selectedExchange}
+                        onChange={(e) => setSelectedExchange(e.target.value)}
+                        className="glass-input pl-8 pr-4 py-2.5 text-xs text-white uppercase tracking-widest font-bold border-none bg-blue-500/10 cursor-pointer hover:bg-blue-500/20 transition-all appearance-none"
+                    >
+                        <option value="nse">NSE</option>
+                        <option value="bse">BSE</option>
+                        <option value="us">USA</option>
+                        <option value="japan">JAP</option>
+                    </select>
+                    <Globe className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 pointer-events-none" />
+
+                    {/* Search Input */}
+                    <div className="relative flex-1">
+                        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-400 transition-colors pointer-events-none" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setIsDropdownOpen(true);
+                            }}
+                            onFocus={() => setIsDropdownOpen(true)}
+                            placeholder={`Search ${selectedExchange.toUpperCase()} symbols...`}
+                            className="w-full pl-10 pr-12 py-2.5 glass-input text-gray-300 placeholder-gray-600 focus:placeholder-gray-500 transition-all text-sm"
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-gray-600 border border-gray-700/50 rounded px-1.5 py-0.5 pointer-events-none group-focus-within:opacity-0 transition-opacity">
+                            <Command className="w-2.5 h-2.5" />
+                            <span>K</span>
+                        </div>
                     </div>
                 </div>
 
@@ -98,7 +116,7 @@ const Header = ({ toggleSidebar }) => {
                                         </div>
                                         <div>
                                             <div className="text-xs font-bold text-white tracking-tight">{stock.symbol}</div>
-                                            <div className="text-[10px] text-gray-500 font-medium">NSE · {stock.sector}</div>
+                                            <div className="text-[10px] text-gray-500 font-medium">{selectedExchange.toUpperCase()} · {stock.sector}</div>
                                         </div>
                                     </div>
                                     <div className="text-right">

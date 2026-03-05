@@ -69,8 +69,8 @@ export const getMyHistory = async () => {
     return await api.get('/predict/history/me');
 }
 
-export const getNSESymbols = async () => {
-    return await api.get('/predict/symbols/nse');
+export const getSymbols = async (exchange) => {
+    return await api.get(`/predict/symbols/${exchange}`);
 }
 
 export const getPendingUsers = async () => {
