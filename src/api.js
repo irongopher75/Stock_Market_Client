@@ -60,17 +60,32 @@ export const getMe = async () => {
 };
 
 export const getPrediction = async (symbol, interval = '1h', period = '1mo') => {
-    return await api.get(`/predict/${symbol}`, {
+    return await api.get(`/api/v1/predict/${symbol}`, {
         params: { interval, period }
     });
 }
 
 export const getMyHistory = async () => {
-    return await api.get('/predict/history/me');
+    return await api.get('/api/v1/predict/history/me');
 }
 
 export const getSymbols = async (exchange) => {
-    return await api.get(`/predict/symbols/${exchange}`);
+    return await api.get(`/api/v1/predict/symbols/${exchange}`);
+}
+
+// --- Backtesting API ---
+export const runBacktest = async (symbol, period = '1y', interval = '1d', initial_capital = 100000) => {
+    return await api.post('/api/v1/backtest/run', null, {
+        params: { symbol, period, interval, initial_capital }
+    });
+}
+
+export const getBacktestHistory = async () => {
+    return await api.get('/api/v1/backtest/history');
+}
+
+export const getBacktestResult = async (runId) => {
+    return await api.get(`/api/v1/backtest/${runId}`);
 }
 
 export const getPendingUsers = async () => {

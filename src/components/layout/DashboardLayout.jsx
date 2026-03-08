@@ -19,7 +19,7 @@ const DashboardLayout = () => {
                 <Header toggleSidebar={toggleSidebar} />
 
                 <main className="flex-1 p-4 md:p-6 overflow-y-auto">
-                    <div className="max-w-7xl mx-auto space-y-6">
+                    <div className="max-w-7xl mx-auto space-y-6 animate-slide-up">
                         <Outlet />
                     </div>
                 </main>

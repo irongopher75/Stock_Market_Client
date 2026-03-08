@@ -10,6 +10,18 @@ import TradingTerminal from '../components/dashboard/TradingTerminal';
 import TechnicalAuditModal from '../components/dashboard/TechnicalAuditModal';
 import LoadingScreen from '../components/shared/LoadingScreen';
 
+const getExchangeInfo = (symbol) => {
+    if (symbol?.endsWith('.BO')) return { label: 'BSE', currency: '₹' };
+    if (symbol?.endsWith('.T')) return { label: 'TYO', currency: '¥' };
+    if (symbol?.endsWith('.L')) return { label: 'LSE', currency: '£' };
+    if (symbol?.includes('.') || (symbol?.length > 0 && !symbol.includes('.'))) {
+        // Fallback or US (no suffix)
+        if (!symbol.includes('.')) return { label: 'NASDAQ/NYSE', currency: '$' };
+        if (symbol.endsWith('.NS')) return { label: 'NSE', currency: '₹' };
+    }
+    return { label: 'STOCK', currency: '₹' };
+};
+
 const StockDetail = () => {
     const { symbol } = useParams();
     const navigate = useNavigate();
@@ -53,7 +65,7 @@ const StockDetail = () => {
                             Institutional Vector
                         </div>
                         <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic flex items-center gap-3">
-                            {symbol} <span className="text-blue-500/50">/ NSE</span>
+                            {symbol} <span className="text-blue-500/50">/ {getExchangeInfo(symbol).label}</span>
                         </h1>
                     </div>
                 </div>
@@ -82,7 +94,7 @@ const StockDetail = () => {
                         <div className="relative z-10">
                             <p className="text-[10px] font-black text-gray-500 uppercase tracking-[4px] mb-2">Current Market Price</p>
                             <div className="text-6xl font-mono font-bold text-white tracking-tighter mb-2">
-                                ₹{data?.current_price?.toLocaleString()}
+                                {getExchangeInfo(symbol).currency}{data?.current_price?.toLocaleString()}
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className="flex items-center gap-1 text-sm font-bold text-green-400 bg-green-400/10 px-3 py-1 rounded-full">
@@ -133,7 +145,7 @@ const StockDetail = () => {
                                 </div>
                                 <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
                                     Asset is currently trading in a {data?.rsi > 70 ? 'Overbought' : data?.rsi < 30 ? 'Oversold' : 'Balanced'} zone.
-                                    Institutional POC detected at <span className="text-white font-mono">₹{data?.poc}</span>.
+                                    Institutional POC detected at <span className="text-white font-mono">{getExchangeInfo(symbol).currency}{data?.poc}</span>.
                                 </p>
                             </div>
                         </div>
@@ -151,7 +163,7 @@ const StockDetail = () => {
                                 ].map((band, idx) => (
                                     <div key={idx} className="flex justify-between items-center py-2 border-b border-white/5 last:border-0">
                                         <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{band.label}</span>
-                                        <span className={`text-xs font-mono font-bold ${band.color}`}>₹{band.val?.toLocaleString()}</span>
+                                        <span className={`text-xs font-mono font-bold ${band.color}`}>{getExchangeInfo(symbol).currency}{band.val?.toLocaleString()}</span>
                                     </div>
                                 ))}
                             </div>

@@ -1,5 +1,12 @@
-import React from 'react';
 import { X, Activity, ShieldCheck, TrendingUp, TrendingDown, Target, Zap } from 'lucide-react';
+
+const getExchangeInfo = (symbol) => {
+    if (symbol?.endsWith('.BO')) return { label: 'BSE', currency: '₹' };
+    if (symbol?.endsWith('.T')) return { label: 'TYO', currency: '¥' };
+    if (symbol?.endsWith('.L')) return { label: 'LSE', currency: '£' };
+    if (!symbol?.includes('.')) return { label: 'US', currency: '$' };
+    return { label: 'NSE', currency: '₹' };
+};
 
 const TechnicalAuditModal = ({ isOpen, onClose, data, symbol }) => {
     if (!isOpen || !data) return null;
@@ -68,7 +75,7 @@ const TechnicalAuditModal = ({ isOpen, onClose, data, symbol }) => {
                         {/* Summary Section */}
                         <div className="col-span-1 md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
                             {[
-                                { label: 'Price (LTP)', value: `₹${data.current_price.toLocaleString()}`, color: 'text-white' },
+                                { label: 'Price (LTP)', value: `${getExchangeInfo(symbol).currency}${data.current_price.toLocaleString()}`, color: 'text-white' },
                                 { label: 'Inference', value: data.prediction, color: data.prediction === 'BULLISH' ? 'text-green-400' : 'text-red-400' },
                                 { label: 'Confidence', value: `${(data.confidence * 100).toFixed(1)}%`, color: 'text-blue-400' },
                                 { label: 'Volatility', value: `${data.vol_ratio}%`, color: 'text-gray-400' }
@@ -82,9 +89,9 @@ const TechnicalAuditModal = ({ isOpen, onClose, data, symbol }) => {
 
                         {/* Moving Averages */}
                         <IndicatorCard title="Trend Trajectory" icon={TrendingUp}>
-                            <MetricRow label="SMA 20 (FAST)" value={`₹${data.sma_20.toLocaleString()}`} subValue="Short-term Vector" />
-                            <MetricRow label="SMA 50 (MED)" value={`₹${data.sma_50.toLocaleString()}`} subValue="Structural Average" />
-                            <MetricRow label="SMA 200 (SLOW)" value={`₹${data.sma_200.toLocaleString()}`} subValue="Institutional Anchor" />
+                            <MetricRow label="SMA 20 (FAST)" value={`${getExchangeInfo(symbol).currency}${data.sma_20.toLocaleString()}`} subValue="Short-term Vector" />
+                            <MetricRow label="SMA 50 (MED)" value={`${getExchangeInfo(symbol).currency}${data.sma_50.toLocaleString()}`} subValue="Structural Average" />
+                            <MetricRow label="SMA 200 (SLOW)" value={`${getExchangeInfo(symbol).currency}${data.sma_200.toLocaleString()}`} subValue="Institutional Anchor" />
                             <div className="mt-4 p-4 rounded-xl bg-blue-500/5 text-blue-400 text-[10px] font-bold flex items-center gap-2">
                                 <Target size={12} />
                                 {data.current_price > data.sma_50 ? "Trading above 50-day Mean (Bullish Structure)" : "Below 50-day Mean (Bearish Structure)"}
@@ -100,7 +107,7 @@ const TechnicalAuditModal = ({ isOpen, onClose, data, symbol }) => {
                                 subValue={data.rsi > 70 ? "Overbought" : data.rsi < 30 ? "Oversold" : "Neutral Range"}
                             />
                             <MetricRow label="MACD Histogram" value={data.macd} subValue="Momentum Delta" />
-                            <MetricRow label="Volume POC" value={`₹${data.poc.toLocaleString()}`} subValue="Point of Control" />
+                            <MetricRow label="Volume POC" value={`${getExchangeInfo(symbol).currency}${data.poc.toLocaleString()}`} subValue="Point of Control" />
                             <div className="mt-4 space-y-2">
                                 <div className="flex justify-between text-[9px] font-black text-gray-500 uppercase tracking-widest">
                                     <span>Relative Strength Index</span>
@@ -117,9 +124,9 @@ const TechnicalAuditModal = ({ isOpen, onClose, data, symbol }) => {
 
                         {/* Bollinger Bands */}
                         <IndicatorCard title="Volatility Envelopes" icon={ShieldCheck}>
-                            <MetricRow label="BB Upper Band" value={`₹${data.bb_upper.toLocaleString()}`} subValue="Resistance Extremum" />
-                            <MetricRow label="BB Basis" value={`₹${data.sma_20.toLocaleString()}`} subValue="Mean Reversion Target" />
-                            <MetricRow label="BB Lower Band" value={`₹${data.bb_lower.toLocaleString()}`} subValue="Support Extremum" />
+                            <MetricRow label="BB Upper Band" value={`${getExchangeInfo(symbol).currency}${data.bb_upper.toLocaleString()}`} subValue="Resistance Extremum" />
+                            <MetricRow label="BB Basis" value={`${getExchangeInfo(symbol).currency}${data.sma_20.toLocaleString()}`} subValue="Mean Reversion Target" />
+                            <MetricRow label="BB Lower Band" value={`${getExchangeInfo(symbol).currency}${data.bb_lower.toLocaleString()}`} subValue="Support Extremum" />
                             <div className="mt-4 p-4 rounded-xl bg-white/5 border border-white/5">
                                 <p className="text-[10px] italic text-gray-400">
                                     Volatility Bandwidth: {((data.bb_upper - data.bb_lower) / data.sma_20 * 100).toFixed(2)}%

@@ -19,9 +19,16 @@ const Sparkline = ({ data, color }) => (
 );
 
 const Dashboard = () => {
-    const { performance, activeTrades, tradeHistory, refreshData } = useData();
-    const [symbol, setSymbol] = useState('NIFTY');
-    const [selectedExchange, setSelectedExchange] = useState('nse');
+    const {
+        performance,
+        activeTrades,
+        tradeHistory,
+        refreshData,
+        activeSymbol: symbol,
+        setActiveSymbol: setSymbol,
+        activeExchange: selectedExchange,
+        setActiveExchange: setSelectedExchange
+    } = useData();
     const [interval, setInterval] = useState('1h');
     const [data, setData] = useState(null);
     const [history, setHistory] = useState([]);
@@ -89,6 +96,7 @@ const Dashboard = () => {
 
     useEffect(() => {
         const init = async () => {
+            setLoading(true);
             try {
                 // Fetch the full list of symbols
                 const symbolsRes = await getSymbols(selectedExchange);
@@ -99,11 +107,12 @@ const Dashboard = () => {
                     const shuffled = [...allSymbols].sort(() => 0.5 - Math.random());
                     const uniqueBasket = [...new Set(shuffled.slice(0, 5).map(s => s.symbol))];
 
-                    // Set default symbol based on exchange if empty or changing exchange
+                    // Set default symbol based on exchange
                     let primeSymbol = uniqueBasket[0];
                     if (selectedExchange === 'nse') primeSymbol = 'NIFTY';
                     else if (selectedExchange === 'us') primeSymbol = 'AAPL';
-                    else if (selectedExchange === 'japan') primeSymbol = '7203.T'; // Toyota
+                    else if (selectedExchange === 'japan') primeSymbol = '7203.T';
+                    else if (selectedExchange === 'uk') primeSymbol = 'HSBA.L'; // HSBC
                     else if (selectedExchange === 'bse') primeSymbol = 'RELIANCE.BO';
 
                     setSymbol(primeSymbol);
@@ -115,7 +124,7 @@ const Dashboard = () => {
                     setLatency(Math.round(endTime - startTime));
                     setData(firstRes.data);
 
-                    // Background seed the rest with a small delay to prevent DB race conditions
+                    // Background seed the rest
                     const seedRemaining = async () => {
                         for (const sym of uniqueBasket.slice(1)) {
                             await new Promise(resolve => setTimeout(resolve, 800));
@@ -130,15 +139,25 @@ const Dashboard = () => {
                     seedRemaining();
                 }
             } catch (e) {
-                console.warn("Auto-predict failed (Backend likely starting up):", e);
+                console.warn("Auto-predict failed:", e);
             }
 
             // Refresh history and trades
             await Promise.all([refreshHistory(), refreshData()]);
-            setTimeout(() => setInitialLoading(false), 800);
+            setTimeout(() => {
+                setInitialLoading(false);
+                setLoading(false);
+            }, 800);
         }
         init();
     }, [selectedExchange]);
+
+    // Re-trigger prediction when global symbol changes from Header
+    useEffect(() => {
+        if (symbol && !initialLoading) {
+            handlePredict();
+        }
+    }, [symbol]);
 
     const refreshHistory = async () => {
         try {
@@ -205,6 +224,7 @@ const Dashboard = () => {
                             <option value="bse">BSE</option>
                             <option value="us">US</option>
                             <option value="japan">JAP</option>
+                            <option value="uk">LSE</option>
                         </select>
                         <Globe className="w-3 h-3 absolute right-1 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
                     </div>
@@ -233,7 +253,7 @@ const Dashboard = () => {
                     <button
                         onClick={handlePredict}
                         disabled={loading}
-                        className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 hover-scale"
                     >
                         {loading ? <Clock className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-current" />}
                         {loading ? 'ANALYZING' : 'RUN'}
@@ -289,10 +309,10 @@ const Dashboard = () => {
                     <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/5 blur-[120px] rounded-full translate-x-1/2 -translate-y-1/2" />
 
                     <div className="relative z-10">
-                        <div className="flex justify-between items-start mb-12">
+                        <div className="flex justify-between items-start mb-12 animate-slide-up">
                             <div>
                                 <p className="text-blue-500 text-[10px] font-black uppercase tracking-[4px] mb-2">Neural Consensus Engine</p>
-                                <h2 className="text-4xl font-black text-white tracking-tighter italic uppercase">Alpha Inference</h2>
+                                <h1 className="text-5xl font-black text-white tracking-tighter italic uppercase bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/40">Alpha Inference</h1>
                             </div>
                             <div className="text-right">
                                 <p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Confidence Score</p>
@@ -428,7 +448,7 @@ const Dashboard = () => {
 
                     <button
                         onClick={() => setIsAuditOpen(true)}
-                        className="w-full py-4 mt-10 rounded-2xl bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] transition-all font-bold text-[10px] uppercase tracking-[2px] flex items-center justify-center gap-2 group"
+                        className="w-full py-4 mt-10 rounded-2xl bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] transition-all font-bold text-[10px] uppercase tracking-[2px] flex items-center justify-center gap-2 group hover-press"
                     >
                         <Maximize2 size={12} className="group-hover:rotate-12 transition-transform" />
                         Full Technical Audit
@@ -448,16 +468,16 @@ const Dashboard = () => {
                 </div>
 
                 {/* HFT Risk Engine - Full Width Enhanced (data-driven from hft_risk) */}
-                <div className="col-span-12 glass-card rounded-[3rem] p-1 items-center bg-gradient-to-r from-blue-500/20 via-purple-500/10 to-transparent">
-                    <div className="bg-gray-950 rounded-[2.9rem] p-10">
+                <div className="col-span-12 glass-panel rounded-[3rem] p-1 items-center bg-gradient-to-r from-blue-500/20 via-purple-500/10 to-transparent animate-slide-up stagger-3">
+                    <div className="bg-gray-950/40 backdrop-blur-xl rounded-[2.9rem] p-10">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
                             <div>
-                                <h2 className="text-4xl font-bold tracking-tighter mb-2">HFT Risk Management</h2>
+                                <h1 className="text-4xl font-bold tracking-tighter mb-2 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-500">HFT Risk Management</h1>
                                 <p className="text-gray-500 font-medium">Auto-adaptive risk parameters synchronized with broker APIs.</p>
                             </div>
                             <div className="glass-panel px-6 py-3 rounded-2xl flex items-center gap-4">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+                                    <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)] animate-pulse" />
                                     <span className="text-xs font-black tracking-widest text-white uppercase">Engine Live</span>
                                 </div>
                                 <div className="w-px h-4 bg-white/10" />
@@ -590,10 +610,10 @@ const Dashboard = () => {
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto mask-fade-right">
                         <table className="w-full">
                             <thead>
-                                <tr className="text-left text-[10px] font-black uppercase tracking-[2px] text-gray-600 border-b border-white/5">
+                                <tr className="text-left text-[10px] font-black uppercase tracking-[2px] text-gray-600 border-b border-white/5 transition-premium">
                                     <th className="pb-6 pl-4">Timestamp</th>
                                     <th className="pb-6">Instrument</th>
                                     <th className="pb-6">Strategy</th>

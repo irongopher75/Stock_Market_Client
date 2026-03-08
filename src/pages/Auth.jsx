@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { login, register } from '../api';
 import { Navigate } from 'react-router-dom';
-import LoadingScreen from '../components/shared/LoadingScreen';
 
 const Auth = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -10,6 +9,16 @@ const Auth = () => {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [redirectTo, setRedirectTo] = useState(null);
+    const [tick, setTick] = useState(new Date().toLocaleTimeString('en-IN', { hour12: false }));
+
+    useEffect(() => {
+        // If already logged in, go straight to terminal
+        if (localStorage.getItem('token')) {
+            setRedirectTo('/terminal');
+        }
+        const t = setInterval(() => setTick(new Date().toLocaleTimeString('en-IN', { hour12: false })), 1000);
+        return () => clearInterval(t);
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -18,67 +27,119 @@ const Auth = () => {
         try {
             if (isLogin) {
                 await login(email, password);
-                setRedirectTo('/dashboard');
+                setRedirectTo('/terminal');
             } else {
                 await register(email, password);
-                alert("Registration successful! Please wait for Admin approval.");
+                setError('');
+                alert('Registration submitted. Awaiting admin approval.');
                 setIsLogin(true);
             }
         } catch (err) {
-            if (err.response && err.response.data && err.response.data.detail) {
-                const detail = err.response.data.detail;
-                if (Array.isArray(detail)) {
-                    setError(detail.map(d => d.msg).join(', ') || "Validation error occurred");
-                } else if (typeof detail === 'object') {
-                    setError(JSON.stringify(detail));
-                } else {
-                    setError(detail);
-                }
-            } else {
-                setError("Authentication failed. Please try again.");
-            }
+            const detail = err.response?.data?.detail;
+            if (Array.isArray(detail)) setError(detail.map(d => d.msg).join(', '));
+            else if (typeof detail === 'string') setError(detail);
+            else setError('Authentication failed. Check credentials.');
         } finally {
             setIsLoading(false);
         }
     };
 
-    if (redirectTo) {
-        return <Navigate to={redirectTo} replace />;
-    }
+    if (redirectTo) return <Navigate to={redirectTo} replace />;
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white w-full">
-            {isLoading && <LoadingScreen message={isLogin ? "Securing your session..." : "Creating your TradeX account..."} />}
-            <div className="glass p-8 rounded-xl w-full max-w-md">
-                <h2 className="text-3xl font-bold mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
-                    {isLogin ? 'Welcome Back' : 'Stock Market Dashboard'}
-                </h2>
-                {error && <p className="text-red-400 text-center mb-4">{error}</p>}
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <input
-                        type="email"
-                        placeholder="Email"
-                        className="w-full p-3 bg-gray-800 rounded border border-gray-700 focus:outline-none focus:border-blue-500"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                    />
-                    <input
-                        type="password"
-                        placeholder="Password"
-                        className="w-full p-3 bg-gray-800 rounded border border-gray-700 focus:outline-none focus:border-blue-500"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                    />
-                    <button
-                        disabled={isLoading}
-                        className={`w-full p-3 rounded font-bold transition ${isLoading ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
-                    >
-                        {isLoading ? 'Processing...' : (isLogin ? 'Login' : 'Sign Up')}
-                    </button>
-                </form>
-                <p className="mt-4 text-center text-gray-400 cursor-pointer hover:text-white" onClick={() => setIsLogin(!isLogin)}>
-                    {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Login"}
-                </p>
+        <div style={{ minHeight: '100vh', background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'IBM Plex Mono, monospace' }}>
+
+            {/* Background grid lines */}
+            <div style={{ position: 'fixed', inset: 0, backgroundImage: 'linear-gradient(#0A0A0A 1px, transparent 1px), linear-gradient(90deg, #0A0A0A 1px, transparent 1px)', backgroundSize: '40px 40px', pointerEvents: 'none' }} />
+
+            {/* Status bar */}
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '28px', background: '#0D0D0D', borderBottom: '1px solid #1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', zIndex: 10 }}>
+                <span style={{ color: '#FF6600', fontSize: '12px', letterSpacing: '2px' }}>▸ AXIOM TERMINAL</span>
+                <span style={{ color: '#333', fontSize: '10px' }}>{tick} IST</span>
+            </div>
+
+            {/* Login Card */}
+            <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: '420px', padding: '0 16px', marginTop: '28px' }}>
+                <div style={{ border: '1px solid #1A1A1A', background: '#0D0D0D', padding: '40px 36px' }}>
+
+                    {/* Logo */}
+                    <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '26px', color: '#FF6600', letterSpacing: '6px', marginBottom: '6px' }}>AXIOM</div>
+                        <div style={{ fontSize: '11px', color: '#333', letterSpacing: '2px' }}>FINANCIAL INTELLIGENCE PLATFORM</div>
+                    </div>
+
+                    {/* Mode toggle */}
+                    <div style={{ display: 'flex', marginBottom: '28px', borderBottom: '1px solid #1A1A1A' }}>
+                        {['LOGIN', 'REGISTER'].map(mode => {
+                            const active = (mode === 'LOGIN') === isLogin;
+                            return (
+                                <button key={mode} onClick={() => { setIsLogin(mode === 'LOGIN'); setError(''); }}
+                                    style={{ flex: 1, padding: '8px', background: 'transparent', border: 'none', borderBottom: `2px solid ${active ? '#FF6600' : 'transparent'}`, color: active ? '#FF6600' : '#444', fontFamily: 'IBM Plex Mono', fontSize: '11px', letterSpacing: '1px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                    {mode}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Error */}
+                    {error && (
+                        <div style={{ background: 'rgba(255,34,68,0.08)', border: '1px solid #FF224433', padding: '8px 12px', marginBottom: '16px', color: '#FF4455', fontSize: '10px', letterSpacing: '0.05em' }}>
+                            {error.toUpperCase()}
+                        </div>
+                    )}
+
+                    {/* Form */}
+                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div>
+                            <label style={{ display: 'block', color: '#444', fontSize: '9px', letterSpacing: '1px', marginBottom: '4px' }}>EMAIL</label>
+                            <input
+                                type="email" required autoComplete="email"
+                                value={email} onChange={e => setEmail(e.target.value)}
+                                style={{ width: '100%', background: '#060606', border: '1px solid #1A1A1A', padding: '10px 12px', color: '#FFF', fontFamily: 'IBM Plex Mono', fontSize: '12px', outline: 'none', boxSizing: 'border-box', transition: 'border 0.15s' }}
+                                onFocus={e => e.target.style.borderColor = '#FF6600'}
+                                onBlur={e => e.target.style.borderColor = '#1A1A1A'}
+                                placeholder="user@domain.com"
+                            />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', color: '#444', fontSize: '9px', letterSpacing: '1px', marginBottom: '4px' }}>PASSWORD</label>
+                            <input
+                                type="password" required autoComplete="current-password"
+                                value={password} onChange={e => setPassword(e.target.value)}
+                                style={{ width: '100%', background: '#060606', border: '1px solid #1A1A1A', padding: '10px 12px', color: '#FFF', fontFamily: 'IBM Plex Mono', fontSize: '12px', outline: 'none', boxSizing: 'border-box', transition: 'border 0.15s' }}
+                                onFocus={e => e.target.style.borderColor = '#FF6600'}
+                                onBlur={e => e.target.style.borderColor = '#1A1A1A'}
+                                placeholder="••••••••"
+                            />
+                        </div>
+
+                        <button
+                            type="submit" disabled={isLoading}
+                            style={{ marginTop: '8px', padding: '12px', background: isLoading ? '#1A1A1A' : '#FF6600', color: isLoading ? '#555' : '#000', border: 'none', fontFamily: 'IBM Plex Mono', fontSize: '12px', fontWeight: 'bold', letterSpacing: '2px', cursor: isLoading ? 'not-allowed' : 'pointer', transition: 'background 0.15s' }}
+                        >
+                            {isLoading ? 'AUTHENTICATING...' : (isLogin ? 'ACCESS TERMINAL' : 'REQUEST ACCESS')}
+                        </button>
+                    </form>
+
+                    {/* Register note */}
+                    {!isLogin && (
+                        <div style={{ marginTop: '16px', color: '#333', fontSize: '9px', textAlign: 'center', lineHeight: '1.6' }}>
+                            NEW ACCOUNTS REQUIRE ADMIN APPROVAL<br />BEFORE TERMINAL ACCESS IS GRANTED
+                        </div>
+                    )}
+
+                    {/* Admin link */}
+                    <div style={{ marginTop: '28px', textAlign: 'center', borderTop: '1px solid #111', paddingTop: '16px' }}>
+                        <a href="/admin" style={{ color: '#333', fontSize: '9px', letterSpacing: '1px', textDecoration: 'none' }}>
+                            ADMIN CONSOLE →
+                        </a>
+                    </div>
+                </div>
+
+                {/* Version tag */}
+                <div style={{ textAlign: 'center', marginTop: '12px', color: '#1A1A1A', fontSize: '9px', letterSpacing: '1px' }}>
+                    AXIOM v3.0 · RESTRICTED ACCESS
+                </div>
             </div>
         </div>
     );

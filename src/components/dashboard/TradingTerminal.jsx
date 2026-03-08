@@ -1,17 +1,68 @@
-import React, { useState } from 'react';
-import { ShoppingBag, ArrowUpRight, ArrowDownRight, Clock, AlertCircle } from 'lucide-react';
-import { executeManualTrade } from '../../api';
+import { ShoppingBag, ArrowUpRight, ArrowDownRight, Clock, AlertCircle, Search, ChevronDown } from 'lucide-react';
+import { executeManualTrade, getSymbols } from '../../api';
 import { useData } from '../../context/DataContext';
+import { useEffect, useRef } from 'react';
+
+const getExchangeInfo = (symbol) => {
+    if (symbol?.endsWith('.BO')) return { label: 'BSE', currency: '₹' };
+    if (symbol?.endsWith('.T')) return { label: 'TYO', currency: '¥' };
+    if (symbol?.endsWith('.L')) return { label: 'LSE', currency: '£' };
+    if (!symbol?.includes('.')) return { label: 'US', currency: '$' };
+    return { label: 'NSE', currency: '₹' };
+};
 
 const TradingTerminal = ({ symbol, currentPrice, onTradeSuccess }) => {
-    const { systemConfig } = useData();
+    const { systemConfig, setActiveSymbol, activeExchange } = useData();
     const [quantity, setQuantity] = useState(1);
     const [price, setPrice] = useState(currentPrice);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [status, setStatus] = useState(null);
 
+    // Dropdown state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [stockDatabase, setStockDatabase] = useState([]);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const fetchSymbols = async () => {
+            try {
+                const res = await getSymbols(activeExchange);
+                setStockDatabase(res.data);
+            } catch (err) {
+                console.error(`Failed to fetch symbols in terminal:`, err);
+            }
+        };
+        fetchSymbols();
+    }, [activeExchange]);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setIsDropdownOpen(false);
+                setSearchQuery(''); // Revert view to global symbol
+            }
+        };
+        window.addEventListener('mousedown', handleClickOutside);
+        return () => window.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const getSimilarStocks = (query) => {
+        if (!query) return [];
+        return stockDatabase.filter(s =>
+            s.symbol.toLowerCase().includes(query.toLowerCase()) ||
+            s.name?.toLowerCase().includes(query.toLowerCase())
+        ).slice(0, 5); // Limit for terminal view
+    };
+
+    const handleSelectStock = (s) => {
+        setActiveSymbol(s);
+        setSearchQuery('');
+        setIsDropdownOpen(false);
+    };
     // Sync price if it changes in dashboard but not edited by user
-    React.useEffect(() => {
+    useEffect(() => {
         setPrice(currentPrice);
     }, [currentPrice]);
 
@@ -45,11 +96,49 @@ const TradingTerminal = ({ symbol, currentPrice, onTradeSuccess }) => {
             </div>
 
             <div className="space-y-4 relative z-10">
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 relative" ref={dropdownRef}>
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Instrument</label>
-                    <div className="w-full bg-white/5 border border-white/5 rounded-2xl py-3 px-4 text-sm text-white font-mono font-bold uppercase tracking-tight">
-                        {symbol || "SELECT ASSET"}
+                    <div className="relative group/input">
+                        <input
+                            type="text"
+                            value={searchQuery || symbol}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value.toUpperCase());
+                                setIsDropdownOpen(true);
+                            }}
+                            onFocus={() => setIsDropdownOpen(true)}
+                            className="w-full bg-white/5 border border-white/5 rounded-2xl py-3.5 pl-11 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-premium font-mono font-bold uppercase tracking-tight"
+                            placeholder="SEARCH ASSET"
+                        />
+                        <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within/input:text-blue-400 transition-colors pointer-events-none" />
+                        <ChevronDown className="w-3 h-3 absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" />
                     </div>
+
+                    {/* Auto-suggest Dropdown */}
+                    {isDropdownOpen && searchQuery.length > 0 && (
+                        <div className="absolute top-[calc(100%+8px)] left-0 w-full glass-panel premium-blur rounded-2xl p-2 shadow-2xl z-50 animate-slide-up">
+                            <div className="space-y-1">
+                                {getSimilarStocks(searchQuery).map((stock, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => handleSelectStock(stock.symbol)}
+                                        className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-all group/item text-left"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <div className="text-xs font-bold text-white tracking-tight">{stock.symbol}</div>
+                                            <div className="text-[9px] text-gray-500 font-medium uppercase tracking-tighter">{stock.sector}</div>
+                                        </div>
+                                        <div className="text-[10px] text-blue-500 font-black uppercase tracking-widest">Select</div>
+                                    </button>
+                                ))}
+                                {getSimilarStocks(searchQuery).length === 0 && (
+                                    <div className="p-4 text-center text-[10px] text-gray-600 font-bold uppercase tracking-widest">
+                                        No vectors match
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -84,16 +173,16 @@ const TradingTerminal = ({ symbol, currentPrice, onTradeSuccess }) => {
                 <div className="grid grid-cols-2 gap-4 pt-4">
                     <button
                         onClick={() => handleTrade('BUY')}
-                        disabled={loading || !symbol}
-                        className="py-4 bg-green-600 hover:bg-green-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-green-500/10"
+                        disabled={loading || !symbol || searchQuery.length > 0}
+                        className="py-4 bg-green-600 hover:bg-green-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-premium active:scale-95 disabled:opacity-30 flex items-center justify-center gap-2 shadow-lg shadow-green-500/10 hover-scale"
                     >
                         {loading ? <Clock className="w-4 h-4 animate-spin" /> : <ArrowUpRight className="w-4 h-4" />}
                         Buy {symbol}
                     </button>
                     <button
                         onClick={() => handleTrade('SELL')}
-                        disabled={loading || !symbol}
-                        className="py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-red-500/10"
+                        disabled={loading || !symbol || searchQuery.length > 0}
+                        className="py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-premium active:scale-95 disabled:opacity-30 flex items-center justify-center gap-2 shadow-lg shadow-red-500/10 hover-scale"
                     >
                         {loading ? <Clock className="w-4 h-4 animate-spin" /> : <ArrowDownRight className="w-4 h-4" />}
                         Sell {symbol}
@@ -103,7 +192,7 @@ const TradingTerminal = ({ symbol, currentPrice, onTradeSuccess }) => {
 
             <div className="mt-4 pt-6 border-t border-white/5 flex justify-between items-center relative z-10">
                 <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest font-mono">EST. Margin Required ({(systemConfig?.margin_multiplier || 1)}x):</span>
-                <span className="text-xs font-mono font-bold text-white">₹{((quantity * price) / (systemConfig?.margin_multiplier || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                <span className="text-xs font-mono font-bold text-white">{getExchangeInfo(symbol).currency}{((quantity * price) / (systemConfig?.margin_multiplier || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
             </div>
         </div>
     );

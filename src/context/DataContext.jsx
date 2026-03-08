@@ -14,6 +14,10 @@ export const DataProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
 
+    // Global active asset state
+    const [activeSymbol, setActiveSymbol] = useState('NIFTY');
+    const [activeExchange, setActiveExchange] = useState('nse');
+
     const fetchDataCore = useCallback(async () => {
         if (!isAuthenticated) return;
         try {
@@ -59,7 +63,11 @@ export const DataProvider = ({ children }) => {
             tradeHistory,
             systemConfig,
             loading,
-            refreshData
+            refreshData,
+            activeSymbol,
+            setActiveSymbol,
+            activeExchange,
+            setActiveExchange
         }}>
             {children}
         </DataContext.Provider>

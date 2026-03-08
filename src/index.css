@@ -1,242 +1,160 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@300;400;500;600;700&display=swap');
 
 :root {
-    /* Background & Surfaces */
-    --background: 220 18% 12%;
-    --surface-elevated: 220 16% 16%;
-    --surface-interactive: 220 14% 20%;
+    /* AXIOM CORE PALETTE */
+    --bg-pure: #000000;
+    --bg-panel: #0D0D0D;
+    --panel-border: #1A1A1A;
+    --panel-border-active: #FF6600;
 
-    /* Text Palette */
-    --foreground: 0 0% 95%;
-    --text-secondary: 220 10% 65%;
-    --text-tertiary: 220 10% 45%;
+    /* COLOR LANGUAGE - STRICT */
+    --axiom-orange: #FF6600;
+    /* Primary Actions, Buy Signals */
+    --axiom-green: #00FF41;
+    /* Positive, Matrix Green */
+    --axiom-red: #FF2244;
+    /* Negative, Sell Signals */
+    --axiom-amber: #FFCC00;
+    /* Warnings, Pending */
+    --axiom-cyan: #00CCFF;
+    /* Satellite/Geospatial */
+    --axiom-secondary: #888888;
+    /* Labels */
 
-    /* Accent & Action */
-    --primary: 211 85% 58%;
-    --success: 142 48% 52%;
-    --warning: 38 88% 58%;
-    --danger: 4 72% 58%;
-
-    /* Shadcn/UI Compat (if needed) */
-    --card: 220 16% 16%;
-    --card-foreground: 0 0% 95%;
-    --border: 220 10% 20%;
+    /* TYPOGRAPHY */
+    --font-data: 'IBM Plex Mono', monospace;
+    --font-label: 'IBM Plex Sans Condensed', sans-serif;
 }
 
-@layer base {
-    * {
-        @apply border-white/5;
-    }
-
-    body {
-        @apply antialiased text-foreground;
-        background-color: hsl(var(--background));
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        background-image:
-            radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.03) 0px, transparent 50%),
-            radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.03) 0px, transparent 50%);
-        background-attachment: fixed;
-    }
-
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6 {
-        @apply tracking-tight font-semibold;
-    }
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border-radius: 0 !important;
+    /* No rounded corners anywhere */
 }
 
-@layer components {
-    .font-mono {
-        font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-    }
-
-    /* Refined Apple Glass */
-    .glass-panel {
-        background-color: rgba(255, 255, 255, 0.03);
-        backdrop-filter: blur(40px);
-        -webkit-backdrop-filter: blur(40px);
-        border: 0.5px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-    }
-
-    .glass-card {
-        background-color: rgba(255, 255, 255, 0.02);
-        backdrop-filter: blur(30px);
-        -webkit-backdrop-filter: blur(30px);
-        border: 0.5px solid rgba(255, 255, 255, 0.06);
-        @apply transition-all duration-300 rounded-2xl;
-    }
-
-    .glass-card:hover {
-        background-color: rgba(255, 255, 255, 0.04);
-        border-color: rgba(255, 255, 255, 0.12);
-        transform: translateY(-1px);
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
-    }
-
-    .glass-input {
-        background-color: rgba(255, 255, 255, 0.04);
-        border: 0.5px solid rgba(255, 255, 255, 0.08);
-        @apply rounded-xl px-4 py-2.5 outline-none transition-all;
-    }
-
-    .glass-input:focus {
-        background-color: rgba(255, 255, 255, 0.06);
-        border-color: rgba(59, 130, 246, 0.4);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
-    }
-
-    /* Refined Typography Helpers */
-    .text-secondary {
-        color: hsl(var(--text-secondary));
-    }
-
-    .text-tertiary {
-        color: hsl(var(--text-tertiary));
-    }
-
-    .display-large {
-        @apply text-4xl font-bold tracking-tighter leading-tight;
-    }
-
-    .headline {
-        @apply text-xl font-semibold tracking-tight;
-    }
-
-    .caption {
-        @apply text-xs font-medium tracking-wide uppercase opacity-70;
-    }
+html,
+body,
+#root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background-color: var(--bg-pure);
+    color: #FFFFFF;
+    font-family: var(--font-label);
+    -webkit-font-smoothing: antialiased;
 }
 
-/* Text Gradients */
-.text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-gray-400;
+/* DATA RENDERING */
+.data-mono {
+    font-family: var(--font-data);
 }
 
-.text-gradient-primary {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400;
+/* TERMINAL LAYOUT HELPERS */
+.terminal-panel {
+    background-color: var(--bg-panel);
+    border: 1px solid var(--panel-border);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
-/* Status Indicators */
-.status-dot {
-    @apply w-2 h-2 rounded-full;
+.terminal-panel.active {
+    border-color: var(--panel-border-active);
 }
 
-@layer utilities {
+/* UI COMPONENTS */
+.function-bar {
+    height: 32px;
+    background-color: var(--bg-pure);
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 16px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
 
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
+.function-key {
+    color: var(--axiom-secondary);
+    cursor: pointer;
+}
+
+.function-key span {
+    color: var(--axiom-orange);
+    margin-right: 4px;
+}
+
+.function-key.active {
+    color: #FFFFFF;
+    border-bottom: 2px solid var(--axiom-orange);
+}
+
+/* SCROLLBARS - MINIMAL */
+::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-pure);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--panel-border);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--axiom-secondary);
+}
+
+/* ANIMATIONS */
+@keyframes price-flash-up {
+    0% {
+        background-color: rgba(0, 255, 65, 0.2);
     }
 
-    ::-webkit-scrollbar-track {
-        @apply bg-transparent;
-    }
-
-    ::-webkit-scrollbar-thumb {
-        @apply bg-gray-800 rounded-full hover:bg-gray-700 transition-colors;
-    }
-
-    /* Apple Motion System */
-    .transition-premium {
-        transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
-    }
-
-    .hover-scale {
-        @apply transition-premium;
-    }
-
-    .hover-scale:hover {
-        transform: scale(1.02) translateY(-2px);
-    }
-
-    .hover-press:active {
-        transform: scale(0.98);
-    }
-
-    /* Entry Animations */
-    @keyframes slide-up-fade {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .animate-slide-up {
-        animation: slide-up-fade 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-    }
-
-    .animate-glow {
-        animation: pulse-glow 3s ease-in-out infinite;
-    }
-
-    @keyframes pulse-glow {
-
-        0%,
-        100% {
-            opacity: 0.3;
-        }
-
-        50% {
-            opacity: 0.6;
-        }
-    }
-
-    /* Custom Transitions */
-    .stagger-1 {
-        animation-delay: 0.1s;
-    }
-
-    .stagger-2 {
-        animation-delay: 0.2s;
-    }
-
-    .stagger-3 {
-        animation-delay: 0.3s;
-    }
-
-    /* Animation Utilities */
-    .animate-float {
-        animation: float 6s ease-in-out infinite;
-    }
-
-    @keyframes float {
-
-        0%,
-        100% {
-            transform: translateY(0);
-        }
-
-        50% {
-            transform: translateY(-10px);
-        }
+    100% {
+        background-color: transparent;
     }
 }
 
-@layer utilities {
-    .custom-scrollbar::-webkit-scrollbar {
-        width: 4px;
+@keyframes price-flash-down {
+    0% {
+        background-color: rgba(255, 34, 68, 0.2);
     }
 
-    .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
+    100% {
+        background-color: transparent;
     }
+}
 
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
-    }
+.flash-up {
+    animation: price-flash-up 0.3s ease-out;
+}
+
+.flash-down {
+    animation: price-flash-down 0.3s ease-out;
+}
+
+/* MAP STYLES */
+.leaflet-container {
+    background: var(--bg-pure) !important;
+}
+
+/* TICKER */
+.ticker-container {
+    height: 24px;
+    background-color: var(--bg-panel);
+    border-top: 1px solid var(--panel-border);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+    font-family: var(--font-data);
+    font-size: 12px;
 }

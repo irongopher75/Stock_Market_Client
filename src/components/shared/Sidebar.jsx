@@ -98,17 +98,18 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                             to={item.path}
                             onClick={closeSidebar}
                             className={({ isActive }) => `
-                                group flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative
+                                group flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-premium relative overflow-hidden
                                 ${isActive
-                                    ? 'bg-white/5 text-white'
-                                    : 'text-gray-500 hover:text-white hover:bg-white/[0.03]'
+                                    ? 'bg-gradient-to-r from-blue-500/10 to-transparent text-white border border-blue-500/20 shadow-[0_4px_20px_rgba(59,130,246,0.1)]'
+                                    : 'text-gray-500 hover:text-white hover:bg-white/[0.03] border border-transparent'
                                 }
                             `}
                         >
                             {({ isActive }) => (
                                 <>
                                     {/* Active Sidebar Indicator */}
-                                    {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] bg-blue-500 rounded-r-full" />}
+                                    {/* Active Sidebar Indicator - Apple Style Dot */}
+                                    {isActive && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-1 h-1 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,1)]" />}
 
                                     <div className="flex items-center gap-3.5">
                                         <item.icon size={20} className={`shrink-0 transition-colors ${isActive ? 'text-blue-500' : 'text-gray-600 group-hover:text-gray-400'}`} />
