@@ -15,4 +15,16 @@ export default defineConfig({
             ],
         },
     },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    geospatial: ['@deck.gl/react', '@deck.gl/layers', 'maplibre-gl'],
+                    charts: ['lightweight-charts'],
+                    vendor: ['react', 'react-dom', 'zustand', 'react-router-dom'],
+                }
+            }
+        },
+        chunkSizeWarningLimit: 1000,
+    }
 })

@@ -87,12 +87,31 @@ const useTerminalStore = create((set, get) => ({
                         }
                     }));
                     break;
-                case 'VESSEL':
-                    // Just update the list for now
-                    set({ vessels: data });
+                case 'VESSEL_DIFF':
+                    set((state) => {
+                        const newVessels = [...state.vessels];
+                        const { updated, removed } = data;
+                        updated.forEach(v => {
+                            const idx = newVessels.findIndex(exist => exist.mmsi === v.mmsi);
+                            if (idx !== -1) newVessels[idx] = { ...newVessels[idx], ...v };
+                            else newVessels.push(v);
+                        });
+                        const finalVessels = newVessels.filter(v => !removed.includes(v.mmsi));
+                        return { vessels: finalVessels };
+                    });
                     break;
-                case 'AIRCRAFT':
-                    set({ aircraft: data });
+                case 'AIRCRAFT_DIFF':
+                    set((state) => {
+                        const newAircraft = [...state.aircraft];
+                        const { updated, removed } = data;
+                        updated.forEach(a => {
+                            const idx = newAircraft.findIndex(exist => exist.icao24 === a.icao24);
+                            if (idx !== -1) newAircraft[idx] = { ...newAircraft[idx], ...a };
+                            else newAircraft.push(a);
+                        });
+                        const finalAircraft = newAircraft.filter(a => !removed.includes(a.icao24));
+                        return { aircraft: finalAircraft };
+                    });
                     break;
                 default:
                     break;

@@ -164,8 +164,16 @@ const GlobalIntelFeed = () => {
 
                         {/* Sentiment */}
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <span style={{ fontSize: '9px', fontFamily: 'IBM Plex Mono', color: a.sentiment === 'BULLISH' ? '#00FF41' : a.sentiment === 'BEARISH' ? '#FF2244' : '#444' }}>
-                                {a.sentiment}
+                            <span style={{
+                                fontSize: '9px',
+                                fontFamily: 'IBM Plex Mono',
+                                color: a.sentiment_color || (a.sentiment === 'BULLISH' ? '#00FF41' : a.sentiment === 'BEARISH' ? '#FF2244' : '#444'),
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                            }}>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: a.sentiment_color || '#444' }}></span>
+                                {a.sentiment} {a.sentiment_score !== undefined ? `(${a.sentiment_score})` : ''}
                             </span>
                             {a.source && (
                                 <span style={{ fontSize: '9px', color: '#333', fontFamily: 'IBM Plex Mono' }}>

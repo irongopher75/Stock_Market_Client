@@ -1,13 +1,14 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, Cell, LineChart } from 'recharts';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { createChart, ColorType } from 'lightweight-charts';
 import useTerminalStore from '../../store/useTerminalStore';
 
 const INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1D', '1W'];
 
 // Generate realistic-looking OHLCV data seeded by symbol
-const generateCandles = (symbol, count = 60) => {
+const generateCandles = (symbol, count = 100) => {
     const seed = symbol?.charCodeAt(0) ?? 65;
     let price = 100 + (seed % 200);
+    const now = Math.floor(Date.now() / 1000);
     return Array.from({ length: count }, (_, i) => {
         const open = price;
         const chg = (Math.random() - 0.48) * price * 0.012;
@@ -15,68 +16,171 @@ const generateCandles = (symbol, count = 60) => {
         const high = Math.max(open, close) * (1 + Math.random() * 0.005);
         const low = Math.min(open, close) * (1 - Math.random() * 0.005);
         const volume = Math.floor(Math.random() * 8000000 + 500000);
-        const isUp = close >= open;
         price = close;
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - (count - i) * 5);
-        return { time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }), open, close, high, low, volume, isUp };
+        return {
+            time: now - (count - i) * 300,
+            open: parseFloat(open.toFixed(2)),
+            high: parseFloat(high.toFixed(2)),
+            low: parseFloat(low.toFixed(2)),
+            close: parseFloat(close.toFixed(2)),
+            volume
+        };
     });
 };
 
 const MainChart = () => {
     const { activeSymbol, equityPrices } = useTerminalStore();
     const [interval, setInterval] = useState('5m');
-    const [candles, setCandles] = useState([]);
+    const chartContainerRef = useRef(null);
+    const chartRef = useRef(null);
+    const candlestickSeriesRef = useRef(null);
+    const volumeSeriesRef = useRef(null);
+    const sma20SeriesRef = useRef(null);
+    const sma50SeriesRef = useRef(null);
+
+    const candles = useMemo(() => generateCandles(activeSymbol), [activeSymbol, interval]);
 
     useEffect(() => {
-        setCandles(generateCandles(activeSymbol));
-    }, [activeSymbol]);
+        if (!chartContainerRef.current) return;
 
-    const lastCandle = candles[candles.length - 1];
+        const chart = createChart(chartContainerRef.current, {
+            layout: {
+                background: { type: ColorType.Solid, color: '#0D0D0D' },
+                textColor: '#666',
+            },
+            grid: {
+                vertLines: { color: '#1A1A1A' },
+                horzLines: { color: '#1A1A1A' },
+            },
+            crosshair: {
+                mode: 0, // Normal mode
+            },
+            rightPriceScale: {
+                borderVisible: false,
+            },
+            timeScale: {
+                borderVisible: false,
+                timeVisible: true,
+                secondsVisible: false,
+            },
+            handleScroll: true,
+            handleScale: true,
+        });
 
-    // Only show a price if we have it from the real store (last-close or live tick)
-    // Never display randomly-generated candle close as if it's the real price
-    const realPrice = equityPrices[activeSymbol]?.price ?? null;
-    const livePrice = realPrice;
-    const prevClose = equityPrices[activeSymbol]?.prev_close ?? equityPrices[activeSymbol]?.changePercent != null ? null : null;
+        const candlestickSeries = chart.addCandlestickSeries({
+            upColor: '#00FF41',
+            downColor: '#FF2244',
+            borderVisible: false,
+            wickUpColor: '#00FF41',
+            wickDownColor: '#FF2244',
+        });
 
-    // Compute display change from equityPrices metadata
-    const changePct = equityPrices[activeSymbol]?.changePercent ?? null;
-    const priceUp = equityPrices[activeSymbol]?.up ?? null;
-    const isStale = equityPrices[activeSymbol]?.stale ?? false;
+        const volumeSeries = chart.addHistogramSeries({
+            color: '#26a69a',
+            priceFormat: { type: 'volume' },
+            priceScaleId: '', // overlay
+        });
 
-    // SMA overlay
-    const withSMA = candles.map((c, i, arr) => {
-        const slice20 = arr.slice(Math.max(0, i - 20), i + 1).map(x => x.close);
-        const sma20 = slice20.reduce((a, b) => a + b, 0) / slice20.length;
-        const slice50 = arr.slice(Math.max(0, i - 50), i + 1).map(x => x.close);
-        const sma50 = slice50.reduce((a, b) => a + b, 0) / slice50.length;
-        return { ...c, sma20: parseFloat(sma20.toFixed(2)), sma50: parseFloat(sma50.toFixed(2)) };
-    });
+        volumeSeries.priceScale().applyOptions({
+            scaleMargins: { top: 0.8, bottom: 0 },
+        });
+
+        const sma20Series = chart.addLineSeries({ color: '#FF6600', lineWidth: 1 });
+        const sma50Series = chart.addLineSeries({ color: '#00CCFF', lineWidth: 1 });
+
+        chartRef.current = chart;
+        candlestickSeriesRef.current = candlestickSeries;
+        volumeSeriesRef.current = volumeSeries;
+        sma20SeriesRef.current = sma20Series;
+        sma50SeriesRef.current = sma50Series;
+
+        const handleResize = () => {
+            chart.applyOptions({
+                width: chartContainerRef.current.clientWidth,
+                height: chartContainerRef.current.clientHeight
+            });
+        };
+
+        window.addEventListener('resize', handleResize);
+        handleResize();
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            chart.remove();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!candlestickSeriesRef.current || !volumeSeriesRef.current) return;
+
+        const data = candles;
+        candlestickSeriesRef.current.setData(data);
+
+        const volData = data.map(d => ({
+            time: d.time,
+            value: d.volume,
+            color: d.close >= d.open ? 'rgba(0, 255, 65, 0.4)' : 'rgba(255, 34, 68, 0.4)'
+        }));
+        volumeSeriesRef.current.setData(volData);
+
+        // SMA Data
+        const sma20Data = data.map((d, i) => {
+            if (i < 20) return null;
+            const slice = data.slice(i - 19, i + 1);
+            const sum = slice.reduce((a, b) => a + b.close, 0);
+            return { time: d.time, value: sum / 20 };
+        }).filter(d => d !== null);
+        sma20SeriesRef.current.setData(sma20Data);
+
+        const sma50Data = data.map((d, i) => {
+            if (i < 50) return null;
+            const slice = data.slice(i - 49, i + 1);
+            const sum = slice.reduce((a, b) => a + b.close, 0);
+            return { time: d.time, value: sum / 50 };
+        }).filter(d => d !== null);
+        sma50SeriesRef.current.setData(sma50Data);
+
+        chartRef.current.timeScale().fitContent();
+    }, [candles]);
+
+    // Live Data Integration
+    useEffect(() => {
+        if (!candlestickSeriesRef.current || !equityPrices[activeSymbol]) return;
+
+        const live = equityPrices[activeSymbol];
+        const last = candles[candles.length - 1];
+
+        // Update the last candle with live tick if it's the same minute
+        // For simplicity, we just update the price here
+        candlestickSeriesRef.current.update({
+            time: last.time,
+            open: last.open,
+            high: Math.max(last.high, live.price),
+            low: Math.min(last.low, live.price),
+            close: live.price
+        });
+    }, [equityPrices, activeSymbol]);
+
+    const liveData = equityPrices[activeSymbol];
 
     return (
         <div style={{ height: '100%', background: '#0D0D0D', border: '1px solid #1A1A1A', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* Chart Header */}
             <div style={{ padding: '6px 12px', borderBottom: '1px solid #1A1A1A', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontFamily: 'IBM Plex Mono', fontSize: '12px' }}>
                     <span style={{ color: '#FFF', fontWeight: 'bold' }}>{activeSymbol ?? 'AAPL'}</span>
-                    {livePrice ? (
+                    {liveData ? (
                         <>
-                            <span style={{ color: '#FFF', fontSize: '16px' }}>{Number(livePrice).toFixed(2)}</span>
-                            {changePct != null && (
-                                <span style={{ color: priceUp ? '#00FF41' : '#FF2244', fontSize: '11px' }}>
-                                    {priceUp ? '▲' : '▼'} {Math.abs(changePct).toFixed(2)}%
-                                </span>
-                            )}
-                            {isStale && (
-                                <span style={{ color: '#FFCC00', fontSize: '9px', border: '1px solid #FFCC0044', padding: '1px 4px' }} title="Last close — market closed">
-                                    CLOSE
+                            <span style={{ color: '#FFF', fontSize: '16px' }}>{Number(liveData.price).toFixed(2)}</span>
+                            {liveData.changePercent != null && (
+                                <span style={{ color: liveData.up ? '#00FF41' : '#FF2244', fontSize: '11px' }}>
+                                    {liveData.up ? '▲' : '▼'} {Math.abs(liveData.changePercent).toFixed(2)}%
                                 </span>
                             )}
                         </>
                     ) : (
                         <span style={{ color: '#333', fontSize: '13px' }}>---</span>
                     )}
+                    <span style={{ color: '#444', fontSize: '9px' }}>ENGINE: LIGHTWEIGHT CHARTS</span>
                 </div>
                 <div style={{ display: 'flex', gap: '6px', fontFamily: 'IBM Plex Mono', fontSize: '10px' }}>
                     {INTERVALS.map(iv => (
@@ -88,45 +192,7 @@ const MainChart = () => {
                 </div>
             </div>
 
-            {/* Main Candlestick Chart */}
-            <div style={{ flex: 3, padding: '8px 8px 0' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={withSMA} margin={{ top: 5, right: 50, bottom: 0, left: 0 }}>
-                        <CartesianGrid strokeDasharray="2 2" stroke="#111" vertical={false} />
-                        <XAxis dataKey="time" tick={{ fill: '#444', fontSize: 9 }} tickLine={false} axisLine={false} interval={9} />
-                        <YAxis orientation="right" tick={{ fill: '#666', fontSize: 10 }} tickLine={false} axisLine={false} domain={['auto', 'auto']} tickFormatter={v => v.toFixed(0)} />
-                        <Tooltip
-                            contentStyle={{ background: '#0D0D0D', border: '1px solid #1A1A1A', fontSize: '10px', fontFamily: 'IBM Plex Mono' }}
-                            labelStyle={{ color: '#888' }}
-                            formatter={(v, name) => [v?.toFixed(2), name]}
-                        />
-                        {/* Candle bodies */}
-                        <Bar dataKey="close" fill="#00FF41" barSize={6}>
-                            {withSMA.map((entry, i) => (
-                                <Cell key={i} fill={entry.isUp ? '#00FF41' : '#FF2244'} />
-                            ))}
-                        </Bar>
-                        {/* SMA overlays */}
-                        <Line type="monotone" dataKey="sma20" stroke="#FF6600" strokeWidth={1} dot={false} name="SMA20" opacity={0.7} />
-                        <Line type="monotone" dataKey="sma50" stroke="#00CCFF" strokeWidth={1} dot={false} name="SMA50" opacity={0.6} />
-                    </ComposedChart>
-                </ResponsiveContainer>
-            </div>
-
-            {/* Volume sub-chart */}
-            <div style={{ flex: 1, padding: '0 8px 4px', borderTop: '1px solid #111' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={withSMA} margin={{ top: 4, right: 50, bottom: 0, left: 0 }}>
-                        <XAxis dataKey="time" hide />
-                        <YAxis orientation="right" tick={{ fill: '#333', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={v => `${(v / 1e6).toFixed(1)}M`} />
-                        <Bar dataKey="volume" barSize={6}>
-                            {withSMA.map((entry, i) => (
-                                <Cell key={i} fill={entry.isUp ? 'rgba(0,255,65,0.4)' : 'rgba(255,34,68,0.4)'} />
-                            ))}
-                        </Bar>
-                    </ComposedChart>
-                </ResponsiveContainer>
-            </div>
+            <div ref={chartContainerRef} style={{ flex: 1, position: 'relative' }} />
         </div>
     );
 };
