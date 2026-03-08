@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer } from '@deck.gl/layers';
 import { Map } from 'react-map-gl/maplibre';
@@ -30,17 +30,40 @@ const SatelliteModule = () => {
     const { vessels } = useTerminalStore();
     const [selected, setSelected] = useState(null);
     const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
+    const [processedVessels, setProcessedVessels] = useState([]);
+    const workerRef = useRef(null);
 
-    const activeVessels = useMemo(() => (vessels || []).filter(v => v.lat && v.lon), [vessels]);
-    const sidebarVessels = activeVessels.slice(0, 40);
+    // Initialize worker
+    useEffect(() => {
+        workerRef.current = new Worker(new URL('../../workers/dataWorker.js', import.meta.url));
+
+        workerRef.current.onmessage = ({ data }) => {
+            if (data.type === 'VESSEL_BATCH_READY') {
+                setProcessedVessels(data.payload);
+            }
+        };
+
+        return () => workerRef.current.terminate();
+    }, []);
+
+    // Offload processing to worker on vessel changes
+    useEffect(() => {
+        if (workerRef.current && vessels.length > 0) {
+            const raw = vessels.filter(v => v.lat && v.lon);
+            workerRef.current.postMessage({ type: 'PROCESS_VESSEL_BATCH', payload: raw });
+        }
+    }, [vessels]);
+
+    const activeVessels = processedVessels;
+    const sidebarVessels = useMemo(() => activeVessels.slice(0, 40), [activeVessels]);
 
     const layers = [
         new ScatterplotLayer({
             id: 'vessel-layer',
             data: activeVessels,
             getPosition: d => [d.lon, d.lat],
-            getFillColor: d => VESSEL_COLORS[d.type] || VESSEL_COLORS.default,
-            getRadius: d => (selected?.mmsi === d.mmsi ? 50000 : 25000), // Larger if selected
+            getFillColor: d => d.color || VESSEL_COLORS.default,
+            getRadius: d => (selected?.mmsi === d.mmsi ? 50000 : 25000),
             pickable: true,
             onClick: ({ object }) => setSelected(object),
             updateTriggers: {
@@ -63,17 +86,15 @@ const SatelliteModule = () => {
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#000', position: 'relative' }}>
-            {/* Status Bar */}
             <div style={{ padding: '5px 12px', background: '#0D0D0D', borderBottom: '1px solid #1A1A1A', display: 'flex', gap: '24px', fontSize: '11px', fontFamily: 'IBM Plex Mono', flexShrink: 0, zIndex: 10 }}>
                 <span style={{ color: '#888' }}>AIS VESSELS <span style={{ color: '#00FF41' }}>{activeVessels.length} TRACKED</span></span>
                 <span style={{ color: '#888' }}>|</span>
                 <span style={{ color: '#888' }}>ENGINE: <span style={{ color: '#FF6600' }}>DECK.GL (GPU)</span></span>
                 <span style={{ color: '#888' }}>|</span>
-                <span style={{ color: '#888' }}>SYNC: <span style={{ color: '#FFF' }}>V3 DIFFS</span></span>
+                <span style={{ color: '#888' }}>PROC: <span style={{ color: '#00CCFF' }}>WEB WORKER</span></span>
             </div>
 
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-                {/* DECK.GL MAP */}
                 <div style={{ flex: 1, position: 'relative' }}>
                     <DeckGL
                         viewState={viewState}
@@ -91,7 +112,6 @@ const SatelliteModule = () => {
                         />
                     </DeckGL>
 
-                    {/* Overlay Info Card if selected */}
                     {selected && selected.mmsi && (
                         <div style={{ position: 'absolute', bottom: '20px', left: '20px', background: 'rgba(13,13,13,0.95)', border: '1px solid #FF6600', padding: '12px', minWidth: '220px', zIndex: 5, fontFamily: 'IBM Plex Mono', pointerEvents: 'none' }}>
                             <div style={{ color: '#FF6600', fontWeight: 'bold', fontSize: '12px', marginBottom: '8px', letterSpacing: '1px' }}>{selected.name}</div>
@@ -106,10 +126,8 @@ const SatelliteModule = () => {
                     )}
                 </div>
 
-                {/* SIDEBAR */}
                 <div style={{ width: '280px', background: '#0D0D0D', borderLeft: '1px solid #1A1A1A', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0, zIndex: 10 }}>
                     <div style={{ borderBottom: '1px solid #1A1A1A', padding: '6px 10px', fontSize: '11px', color: '#FF6600' }}>CHOKEPOINT SIGNAL</div>
-                    {/* ... Chokepoints ... */}
                     <div style={{ flex: 1, overflowY: 'auto' }}>
                         {activeVessels.length === 0 && (
                             <div style={{ padding: '20px', color: '#333', textAlign: 'center', fontSize: '10px', fontFamily: 'IBM Plex Mono' }}>
@@ -127,7 +145,7 @@ const SatelliteModule = () => {
                                     <span style={{ color: selected?.mmsi === v.mmsi ? '#FF6600' : '#FFFFFF' }}>{v.name}</span>
                                     <span style={{ color: '#444' }}>{v.speed}kts</span>
                                 </div>
-                                <div style={{ color: `rgb(${VESSEL_COLORS[v.type]?.join(',') || VESSEL_COLORS.default.join(',')})`, fontSize: '9px' }}>
+                                <div style={{ color: `rgb(${(v.color || [136, 136, 136]).join(',')})`, fontSize: '9px' }}>
                                     {v.type} → {v.destination}
                                 </div>
                             </div>

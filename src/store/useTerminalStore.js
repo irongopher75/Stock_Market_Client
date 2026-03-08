@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import api, { getWsUrl } from '../api/index';
+import api from '../api/index';
+import wsClient from '../api/wsClient';
 
 const useTerminalStore = create((set, get) => ({
     activeMode: 'EQUITIES',
@@ -21,8 +22,6 @@ const useTerminalStore = create((set, get) => ({
         globalIntel: true,
     },
 
-    socket: null,
-
     // ACTIONS
     setActiveMode: (mode) => set({ activeMode: mode }),
     setActiveSymbol: (symbol) => set({ activeSymbol: symbol }),
@@ -34,14 +33,13 @@ const useTerminalStore = create((set, get) => ({
 
     // WEBSOCKET HUB CONNECTION
     connect: () => {
-        if (get().socket) return;
+        if (get().isLive) return;
 
         // Step 1: Pre-seed with real last-close prices from yfinance
         const fetchLastKnownPrices = async () => {
             try {
                 const res = await api.get('/api/v1/quotes/batch');
                 const data = res.data;
-                // data shape: { "AAPL": { price, prev_close, change_pct, up, stale } }
                 const priceMap = {};
                 for (const [symbol, quote] of Object.entries(data)) {
                     priceMap[symbol] = {
@@ -50,91 +48,82 @@ const useTerminalStore = create((set, get) => ({
                         timestamp: Date.now(),
                         changePercent: quote.change_pct,
                         up: quote.up,
-                        stale: quote.stale,   // true = last close, not live tick
+                        stale: quote.stale,
                     };
                 }
                 set({ equityPrices: priceMap });
-                console.log(`[AXIOM] Pre-seeded ${Object.keys(priceMap).length} symbols from yfinance`);
+                console.log(`[AXIOM] Pre-seeded ${Object.keys(priceMap).length} symbols`);
             } catch (e) {
-                console.warn('[AXIOM] Last-known price fetch failed:', e);
+                console.warn('[AXIOM] Last-known price fetch failed');
             }
         };
         fetchLastKnownPrices();
 
-        // Step 2: Connect to live WebSocket hub
-        const clientId = Math.random().toString(36).substring(7);
-        const ws = new WebSocket(getWsUrl(clientId));
+        // Step 2: Connect to live WebSocket hub via wsClient
+        wsClient.connect();
 
-        ws.onopen = () => {
-            console.log("Connected to Axiom Hub");
-            set({ isLive: true, socket: ws });
-        };
+        wsClient.on('connection_change', ({ status }) => {
+            set({ isLive: status === 'CONNECTED' });
+        });
 
-        ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            const { type, data } = message;
+        wsClient.on('EQUITY', (payload) => {
+            set((state) => ({
+                equityPrices: {
+                    ...state.equityPrices,
+                    [payload.symbol]: {
+                        price: payload.price,
+                        volume: payload.volume,
+                        timestamp: payload.timestamp,
+                        changePercent: payload.change_pct,
+                        up: payload.up
+                    }
+                }
+            }));
+        });
 
-            switch (type) {
-                case 'EQUITY':
-                    set((state) => ({
-                        equityPrices: {
-                            ...state.equityPrices,
-                            [message.symbol]: {
-                                price: message.price,
-                                volume: message.volume,
-                                timestamp: message.timestamp
-                            }
-                        }
-                    }));
-                    break;
-                case 'VESSEL_DIFF':
-                    set((state) => {
-                        const newVessels = [...state.vessels];
-                        const { updated, removed } = data;
-                        updated.forEach(v => {
-                            const idx = newVessels.findIndex(exist => exist.mmsi === v.mmsi);
-                            if (idx !== -1) newVessels[idx] = { ...newVessels[idx], ...v };
-                            else newVessels.push(v);
-                        });
-                        const finalVessels = newVessels.filter(v => !removed.includes(v.mmsi));
-                        return { vessels: finalVessels };
-                    });
-                    break;
-                case 'AIRCRAFT_DIFF':
-                    set((state) => {
-                        const newAircraft = [...state.aircraft];
-                        const { updated, removed } = data;
-                        updated.forEach(a => {
-                            const idx = newAircraft.findIndex(exist => exist.icao24 === a.icao24);
-                            if (idx !== -1) newAircraft[idx] = { ...newAircraft[idx], ...a };
-                            else newAircraft.push(a);
-                        });
-                        const finalAircraft = newAircraft.filter(a => !removed.includes(a.icao24));
-                        return { aircraft: finalAircraft };
-                    });
-                    break;
-                default:
-                    break;
-            }
-        };
+        wsClient.on('VESSEL_DIFF', (payload) => {
+            set((state) => {
+                const newVessels = [...state.vessels];
+                const { updated, removed } = payload;
+                if (!updated && !removed) return state; // Handle legacy payload shape if any
 
-        ws.onclose = () => {
-            console.log("Disconnected from Axiom Hub. Reconnecting...");
-            set({ isLive: false, socket: null });
-            setTimeout(() => get().connect(), 5000);
-        };
+                (updated || []).forEach(v => {
+                    const idx = newVessels.findIndex(exist => exist.mmsi === v.mmsi);
+                    if (idx !== -1) newVessels[idx] = { ...newVessels[idx], ...v };
+                    else newVessels.push(v);
+                });
+                const finalVessels = newVessels.filter(v => !(removed || []).includes(v.mmsi));
+                return { vessels: finalVessels };
+            });
+        });
 
-        ws.onerror = (err) => {
-            console.error("WebSocket Hub error:", err);
-            ws.close();
-        };
+        wsClient.on('AIRCRAFT_DIFF', (payload) => {
+            set((state) => {
+                const newAircraft = [...state.aircraft];
+                const { updated, removed } = payload;
+                if (!updated && !removed) return state;
+
+                (updated || []).forEach(a => {
+                    const idx = newAircraft.findIndex(exist => exist.icao24 === a.icao24);
+                    if (idx !== -1) newAircraft[idx] = { ...newAircraft[idx], ...a };
+                    else newAircraft.push(a);
+                });
+                const finalAircraft = newAircraft.filter(a => !(removed || []).includes(a.icao24));
+                return { aircraft: finalAircraft };
+            });
+        });
+
+        // News Intelligence Integration
+        wsClient.on('NEWS', (payload) => {
+            set((state) => {
+                const newFeed = [payload, ...state.intelFeed].slice(0, 100);
+                return { intelFeed: newFeed };
+            });
+        });
     },
 
     sendCmd: (type, payload) => {
-        const socket = get().socket;
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(json.dumps({ type, ...payload }));
-        }
+        wsClient.send({ type, ...payload });
     }
 }));
 
