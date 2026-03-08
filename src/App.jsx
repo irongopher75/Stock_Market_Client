@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AxiomTerminal from './components/terminal/AxiomTerminal';
 import Auth from './pages/Auth';
 import AdminDashboard from './pages/AdminDashboard';
-import { getMe } from './api';
+import { getMe } from './api/index';
 
 // ─── Auth State Helper ────────────────────────────────────────────────────────
 const getToken = () => localStorage.getItem('token');

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight, ArrowDownRight, Activity, TrendingUp, AlertTriangle, Zap, Clock, Wallet, BarChart3, History, Maximize2, Globe } from 'lucide-react';
-import { getPrediction, getMyHistory, closeTrade, getSymbols } from '../api';
+import { getPrediction, getMyHistory, closeTrade, getSymbols } from '../api/index';
 import { useData } from '../context/DataContext';
 import LoadingScreen from '../components/shared/LoadingScreen';
 import TradingTerminal from '../components/dashboard/TradingTerminal';

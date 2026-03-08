@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getPendingUsers, approveUser, getMe } from '../api';
+import { getPendingUsers, approveUser, getMe } from '../api/index';
 import { useNavigate } from 'react-router-dom';
 
 const AdminDashboard = () => {

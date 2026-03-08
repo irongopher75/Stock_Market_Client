@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { runBacktest, getBacktestHistory } from '../api';
+import { runBacktest, getBacktestHistory } from '../api/index';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';

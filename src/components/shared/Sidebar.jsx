@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { getPerformance } from '../../api';
+import { getPerformance } from '../../api/index';
 import {
     Activity,
     TrendingUp,

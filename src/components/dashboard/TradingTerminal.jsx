@@ -1,5 +1,5 @@
 import { ShoppingBag, ArrowUpRight, ArrowDownRight, Clock, AlertCircle, Search, ChevronDown } from 'lucide-react';
-import { executeManualTrade, getSymbols } from '../../api';
+import { executeManualTrade, getSymbols } from '../../api/index';
 import { useData } from '../../context/DataContext';
 import { useEffect, useRef } from 'react';
 

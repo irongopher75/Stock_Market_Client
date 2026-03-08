@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import api from '../../api';
+import api from '../../api/index';
 
 const TYPE_COLOR = { CARGO: '#FF6600', PAX: '#00CCFF' };
 

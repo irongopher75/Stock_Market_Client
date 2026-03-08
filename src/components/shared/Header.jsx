@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Bell, Search, Menu, Command, Globe } from 'lucide-react';
-import { getSymbols } from '../../api';
+import { getSymbols } from '../../api/index';
 import { useData } from '../../context/DataContext';
 import React, { useState, useEffect, useRef } from 'react';
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { closeTrade } from '../api';
+import { closeTrade } from '../api/index';
 import { useData } from '../context/DataContext';
 import { Briefcase, TrendingUp, TrendingDown, Target, Zap, AlertCircle } from 'lucide-react';
 import LoadingScreen from '../components/shared/LoadingScreen';

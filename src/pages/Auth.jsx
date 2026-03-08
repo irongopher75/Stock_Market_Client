@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { login, register } from '../api';
+import { login, register } from '../api/index';
 import { Navigate } from 'react-router-dom';
 
 const Auth = () => {

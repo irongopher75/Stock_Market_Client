@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import api, { API_URL } from '../../api';
+import api, { API_URL } from '../../api/index';
 
 const CATEGORIES = ['ALL', 'EQUITY', 'MACRO', 'COMMODITY', 'CRYPTO', 'VESSEL', 'AVIATION', 'GEOPOLITICS', 'GEO'];
 const SEVERITIES = ['ALL', 'RED', 'AMBER', 'GREEN'];

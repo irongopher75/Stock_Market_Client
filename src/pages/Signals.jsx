@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMyHistory } from '../api';
+import { getMyHistory } from '../api/index';
 import { Zap, TrendingUp, TrendingDown, Clock, BarChart2, ShieldCheck, ExternalLink } from 'lucide-react';
 import LoadingScreen from '../components/shared/LoadingScreen';
 

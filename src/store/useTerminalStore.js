@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import api, { getWsUrl } from '../api';
+import api, { getWsUrl } from '../api/index';
 
 const useTerminalStore = create((set, get) => ({
     activeMode: 'EQUITIES',

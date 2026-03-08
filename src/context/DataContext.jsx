@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getMe, getPerformance, getActiveTrades, getTradeHistory, getSystemConfig } from '../api';
+import { getMe, getPerformance, getActiveTrades, getTradeHistory, getSystemConfig } from '../api/index';
 
 const DataContext = createContext();
 

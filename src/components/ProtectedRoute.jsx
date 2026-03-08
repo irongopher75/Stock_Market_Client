@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { getMe } from '../api';
+import { getMe } from '../api/index';
 import LoadingScreen from './shared/LoadingScreen';
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {

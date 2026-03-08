@@ -5,7 +5,7 @@ import {
     Activity, ShieldCheck, Clock, Wallet, BarChart3,
     Maximize2, ChevronRight, Info
 } from 'lucide-react';
-import { getPrediction } from '../api';
+import { getPrediction } from '../api/index';
 import TradingTerminal from '../components/dashboard/TradingTerminal';
 import TechnicalAuditModal from '../components/dashboard/TechnicalAuditModal';
 import LoadingScreen from '../components/shared/LoadingScreen';
