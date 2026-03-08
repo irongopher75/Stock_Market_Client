@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import api from '../../api';
 import useTerminalStore from '../../store/useTerminalStore';
 
 const IntelligencePanel = () => {
@@ -10,10 +11,9 @@ const IntelligencePanel = () => {
         if (!activeSymbol) return;
         setLoading(true);
 
-        fetch(`http://localhost:8000/api/v1/predict?symbol=${encodeURIComponent(activeSymbol)}`)
-            .then(r => r.json())
-            .then(data => {
-                setSignal(data);
+        api.get('/api/v1/predict', { params: { symbol: activeSymbol } })
+            .then(res => {
+                setSignal(res.data);
                 setLoading(false);
             })
             .catch(() => {

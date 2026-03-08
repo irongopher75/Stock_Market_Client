@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import api, { API_URL } from '../../api';
 
 const CATEGORIES = ['ALL', 'EQUITY', 'MACRO', 'COMMODITY', 'CRYPTO', 'VESSEL', 'AVIATION', 'GEOPOLITICS', 'GEO'];
 const SEVERITIES = ['ALL', 'RED', 'AMBER', 'GREEN'];
@@ -33,18 +34,16 @@ const GlobalIntelFeed = () => {
     const fetchFeed = useCallback(async () => {
         startTimer();
         try {
-            const params = new URLSearchParams({ limit: 60 });
-            if (catFilter !== 'ALL') params.append('category', catFilter);
-            if (sevFilter !== 'ALL') params.append('severity', sevFilter);
+            const params = { limit: 60 };
+            if (catFilter !== 'ALL') params.category = catFilter;
+            if (sevFilter !== 'ALL') params.severity = sevFilter;
 
-            const res = await fetch(`http://localhost:8000/api/v1/news/feed?${params}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-            const data = await res.json();
-            setArticles(data.articles || []);
+            const res = await api.get('/api/v1/news/feed', { params });
+            setArticles(res.data.articles || []);
             setLastRefresh(new Date().toLocaleTimeString('en-IN', { hour12: false }));
             setError(null);
         } catch (e) {
-            setError(`${e.message || 'Network error'}`);
+            setError(`${e.response?.data?.detail || e.message || 'Network error'}`);
         } finally {
             setLoading(false);
             stopTimer();
@@ -67,7 +66,7 @@ const GlobalIntelFeed = () => {
     const forceRefresh = async () => {
         setLoading(true);
         try {
-            await fetch('http://localhost:8000/api/v1/news/refresh', { method: 'POST' });
+            await api.post('/api/v1/news/refresh');
         } catch (_) { }
         await fetchFeed();
     };
@@ -121,7 +120,7 @@ const GlobalIntelFeed = () => {
                 {error && !loading && (
                     <div style={{ padding: '12px', color: '#FF2244', fontFamily: 'IBM Plex Mono', fontSize: '10px' }}>
                         {error}<br />
-                        <span style={{ color: '#444', fontSize: '9px' }}>Backend: http://localhost:8000</span>
+                        <span style={{ color: '#444', fontSize: '9px' }}>Backend: {API_URL}</span>
                     </div>
                 )}
                 {!loading && !error && articles.length === 0 && (

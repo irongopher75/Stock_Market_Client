@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import api, { getWsUrl } from '../api';
 
 const useTerminalStore = create((set, get) => ({
     activeMode: 'EQUITIES',
@@ -38,9 +39,8 @@ const useTerminalStore = create((set, get) => ({
         // Step 1: Pre-seed with real last-close prices from yfinance
         const fetchLastKnownPrices = async () => {
             try {
-                const res = await fetch('http://localhost:8000/api/v1/quotes/batch');
-                if (!res.ok) return;
-                const data = await res.json();
+                const res = await api.get('/api/v1/quotes/batch');
+                const data = res.data;
                 // data shape: { "AAPL": { price, prev_close, change_pct, up, stale } }
                 const priceMap = {};
                 for (const [symbol, quote] of Object.entries(data)) {
@@ -63,7 +63,7 @@ const useTerminalStore = create((set, get) => ({
 
         // Step 2: Connect to live WebSocket hub
         const clientId = Math.random().toString(36).substring(7);
-        const ws = new WebSocket(`ws://localhost:8000/ws/terminal/${clientId}`);
+        const ws = new WebSocket(getWsUrl(clientId));
 
         ws.onopen = () => {
             console.log("Connected to Axiom Hub");

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
     baseURL: API_URL,
@@ -8,6 +8,16 @@ const api = axios.create({
         'Content-Type': 'application/json',
     },
 });
+
+export const getWsUrl = (clientId) => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // If API_URL is absolute, replace protocol. If it's relative, use current host.
+    if (API_URL.startsWith('http')) {
+        const url = new URL(API_URL);
+        return `${protocol}//${url.host}/ws/terminal/${clientId}`;
+    }
+    return `${protocol}//${window.location.host}${API_URL}/ws/terminal/${clientId}`;
+};
 
 // Interceptor to add JWT token
 api.interceptors.request.use(

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import api from '../../api';
 
 const TYPE_COLOR = { CARGO: '#FF6600', PAX: '#00CCFF' };
 
@@ -15,18 +16,13 @@ const AviationModule = () => {
     const fetchData = useCallback(async () => {
         try {
             const [liveRes, statsRes] = await Promise.all([
-                fetch(`http://localhost:8000/api/v1/flights/live?limit=500&min_altitude_ft=3000`),
-                fetch(`http://localhost:8000/api/v1/flights/stats`),
+                api.get('/api/v1/flights/live', { params: { limit: 500, min_altitude_ft: 3000 } }),
+                api.get('/api/v1/flights/stats'),
             ]);
 
-            if (liveRes.ok) {
-                const liveData = await liveRes.json();
-                setFlights(liveData.flights || []);
-                setLastRefresh(new Date().toLocaleTimeString('en-IN', { hour12: false }));
-            }
-            if (statsRes.ok) {
-                setStats(await statsRes.json());
-            }
+            setFlights(liveRes.data.flights || []);
+            setLastRefresh(new Date().toLocaleTimeString('en-IN', { hour12: false }));
+            setStats(statsRes.data);
         } catch (e) {
             console.warn('Aviation data fetch failed:', e);
         } finally {
