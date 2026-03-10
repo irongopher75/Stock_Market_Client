@@ -12,6 +12,10 @@ const useTerminalStore = create((set, get) => ({
     vessels: [],
     aircraft: [],
     intelFeed: [],
+    portfolio: [
+        { symbol: 'AAPL', qty: 10, avgPrice: 150 },
+        { symbol: 'TSLA', qty: 5, avgPrice: 200 }
+    ], // Mock initial positions
 
     // UI STATE
     panels: {
@@ -31,9 +35,61 @@ const useTerminalStore = create((set, get) => ({
         panels: { ...state.panels, [panelName]: !state.panels[panelName] }
     })),
 
+    addPosition: (pos) => set((state) => ({
+        portfolio: [...state.portfolio, pos]
+    })),
+
+    removePosition: (symbol) => set((state) => ({
+        portfolio: state.portfolio.filter(p => p.symbol !== symbol)
+    })),
+
+    getPortfolioMetrics: () => {
+        const { portfolio, equityPrices } = get();
+        let totalCost = 0;
+        let currentValue = 0;
+        let dayPl = 0;
+
+        portfolio.forEach(pos => {
+            const live = equityPrices[pos.symbol];
+            const cost = pos.qty * pos.avgPrice;
+            totalCost += cost;
+
+            if (live) {
+                const value = pos.qty * live.price;
+                currentValue += value;
+                // Simplified Day P&L calculation: (current - close) * qty
+                // Since we might not have 'previous close' easily, we'll use (current - avg) * qty for total
+                // but for "DAY P&L" specifically we need the delta from open/close.
+                // For now, let's use the changePercent if available.
+                if (live.changePercent) {
+                    dayPl += (value * (live.changePercent / 100));
+                }
+            } else {
+                currentValue += cost; // Fallback to cost if no live price
+            }
+        });
+
+        const totalPl = currentValue - totalCost;
+        const totalPlPct = totalCost > 0 ? (totalPl / totalCost) * 100 : 0;
+
+        return {
+            dayPl,
+            totalPl,
+            totalPlPct,
+            currentValue,
+            totalCost,
+            count: portfolio.length,
+            // Mocking these for now as they require benchmark correlation and historical data
+            drawdown: -3.4,
+            beta: 1.12,
+            sharpe: 1.84
+        };
+    },
+
     // WEBSOCKET HUB CONNECTION
     connect: () => {
-        if (get().isLive) return;
+        if (get().isLive || get()._connected) return;
+        set({ _connected: true });
 
         // Step 1: Pre-seed with real last-close prices from yfinance
         const fetchLastKnownPrices = async () => {
@@ -49,6 +105,7 @@ const useTerminalStore = create((set, get) => ({
                         changePercent: quote.change_pct,
                         up: quote.up,
                         stale: quote.stale,
+                        currency: quote.currency || 'USD',
                     };
                 }
                 set({ equityPrices: priceMap });
@@ -67,25 +124,33 @@ const useTerminalStore = create((set, get) => ({
         });
 
         wsClient.on('EQUITY', (payload) => {
-            set((state) => ({
-                equityPrices: {
-                    ...state.equityPrices,
-                    [payload.symbol]: {
-                        price: payload.price,
-                        volume: payload.volume,
-                        timestamp: payload.timestamp,
-                        changePercent: payload.change_pct,
-                        up: payload.up
-                    }
+            set((state) => {
+                const current = state.equityPrices[payload.symbol];
+                // Only update if something actually changed to avoid over-rendering
+                if (current && current.price === payload.price && current.volume === payload.volume) {
+                    return state;
                 }
-            }));
+                return {
+                    equityPrices: {
+                        ...state.equityPrices,
+                        [payload.symbol]: {
+                            price: payload.price,
+                            volume: payload.volume,
+                            timestamp: payload.timestamp,
+                            changePercent: payload.change_pct,
+                            up: payload.up,
+                            currency: payload.currency || state.equityPrices[payload.symbol]?.currency || 'USD'
+                        }
+                    }
+                };
+            });
         });
 
         wsClient.on('VESSEL_DIFF', (payload) => {
             set((state) => {
                 const newVessels = [...state.vessels];
                 const { updated, removed } = payload;
-                if (!updated && !removed) return state; // Handle legacy payload shape if any
+                if (!updated && !removed) return state;
 
                 (updated || []).forEach(v => {
                     const idx = newVessels.findIndex(exist => exist.mmsi === v.mmsi);
@@ -113,7 +178,6 @@ const useTerminalStore = create((set, get) => ({
             });
         });
 
-        // News Intelligence Integration
         wsClient.on('NEWS', (payload) => {
             set((state) => {
                 const newFeed = [payload, ...state.intelFeed].slice(0, 100);
@@ -124,6 +188,16 @@ const useTerminalStore = create((set, get) => ({
 
     sendCmd: (type, payload) => {
         wsClient.send({ type, ...payload });
+    },
+
+    searchSymbols: async (query) => {
+        try {
+            const res = await api.get(`/api/v1/search?q=${query}`);
+            return res.data;
+        } catch (e) {
+            console.error('[AXIOM] Symbol search failed:', e);
+            return [];
+        }
     }
 }));
 

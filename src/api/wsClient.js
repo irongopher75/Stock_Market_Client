@@ -8,13 +8,14 @@ class AxiomWSClient {
         this.handlers = new Map();
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
-        this.url = `${import.meta.env.VITE_WS_URL || 'ws://localhost:8000'}/ws/terminal`;
+        const clientId = 'CL-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+        this.url = `${import.meta.env.VITE_WS_URL || 'ws://localhost:8000'}/ws/terminal/${clientId}`;
     }
 
     connect() {
         if (this.ws?.readyState === WebSocket.OPEN) return;
 
-        console.log(`[AXIOM-WS] Connecting to ${this.url}...`);
+        console.log(`[AXIOM-WS] Connecting to terminal...`);
         this.ws = new WebSocket(this.url);
 
         this.ws.onopen = () => {

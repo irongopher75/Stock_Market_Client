@@ -3,15 +3,16 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AxiomTerminal from './components/terminal/AxiomTerminal';
 import Auth from './pages/Auth';
 import AdminDashboard from './pages/AdminDashboard';
+import LandingPage from './components/landing/LandingPage';
+import LogoReveal from './components/auth/LogoReveal';
 import { getMe } from './api/index';
 
 // ─── Auth State Helper ────────────────────────────────────────────────────────
 const getToken = () => localStorage.getItem('token');
 
 // ─── Protected Route Guard ────────────────────────────────────────────────────
-// Redirects to /login if no token. Checks if account is active via /users/me.
 const ProtectedRoute = ({ children }) => {
-    const [status, setStatus] = useState('checking'); // 'checking' | 'ok' | 'denied'
+    const [status, setStatus] = useState('checking');
 
     useEffect(() => {
         if (!getToken()) {
@@ -20,7 +21,6 @@ const ProtectedRoute = ({ children }) => {
         }
         getMe()
             .then(res => {
-                // User must be active AND approved by admin
                 if (res.data?.is_active && res.data?.is_approved) setStatus('ok');
                 else setStatus('denied');
             })
@@ -37,15 +37,11 @@ const ProtectedRoute = ({ children }) => {
             </div>
         );
     }
-    if (status === 'denied') {
-        // Optional: add a query param to show "Pending Approval" message if they are active but not approved
-        return <Navigate to="/login" replace />;
-    }
+    if (status === 'denied') return <Navigate to="/login" replace />;
     return children;
 };
 
 // ─── Admin Route Guard ─────────────────────────────────────────────────────────
-// Only allows users with is_superuser: true.
 const AdminRoute = ({ children }) => {
     const [status, setStatus] = useState('checking');
 
@@ -72,11 +68,26 @@ const AdminRoute = ({ children }) => {
 
 // ─── App Router ───────────────────────────────────────────────────────────────
 function App() {
+    const [showReveal, setShowReveal] = useState(true);
+
+    // Initial branding sequence logic
+    useEffect(() => {
+        // If they're coming from inside the app (e.g. refresh on /terminal), 
+        // maybe we skip reveal? User said "When the domain loads...".
+        // For now, we always show it once per app mount.
+    }, []);
+
+    if (showReveal) {
+        return <LogoReveal onComplete={() => setShowReveal(false)} />;
+    }
+
     return (
         <BrowserRouter>
             <Routes>
-                {/* Landing page = Login */}
-                <Route path="/" element={<Navigate to="/login" replace />} />
+                {/* Landing page = AXIOM Landing */}
+                <Route path="/" element={<LandingPage />} />
+
+                {/* Login Page — refined for v3.5 */}
                 <Route path="/login" element={<Auth />} />
 
                 {/* AXIOM Terminal — requires active account */}
@@ -89,7 +100,7 @@ function App() {
                     }
                 />
 
-                {/* Admin dashboard — requires is_admin flag */}
+                {/* Admin dashboard */}
                 <Route
                     path="/admin"
                     element={
@@ -99,11 +110,8 @@ function App() {
                     }
                 />
 
-                {/* Legacy /dashboard redirect */}
                 <Route path="/dashboard" element={<Navigate to="/terminal" replace />} />
-
-                {/* Catch-all */}
-                <Route path="*" element={<Navigate to="/login" replace />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </BrowserRouter>
     );

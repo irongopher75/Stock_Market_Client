@@ -65,7 +65,7 @@ const Auth = () => {
                     {/* Logo */}
                     <div style={{ marginBottom: '32px', textAlign: 'center' }}>
                         <div style={{ fontSize: '26px', color: '#FF6600', letterSpacing: '6px', marginBottom: '6px' }}>AXIOM</div>
-                        <div style={{ fontSize: '11px', color: '#333', letterSpacing: '2px' }}>FINANCIAL INTELLIGENCE PLATFORM</div>
+                        <div style={{ fontSize: '11px', color: '#333', letterSpacing: '2px' }}>QUANTITATIVE INTELLIGENCE HUB</div>
                     </div>
 
                     {/* Mode toggle */}
@@ -74,7 +74,7 @@ const Auth = () => {
                             const active = (mode === 'LOGIN') === isLogin;
                             return (
                                 <button key={mode} onClick={() => { setIsLogin(mode === 'LOGIN'); setError(''); }}
-                                    style={{ flex: 1, padding: '8px', background: 'transparent', border: 'none', borderBottom: `2px solid ${active ? '#FF6600' : 'transparent'}`, color: active ? '#FF6600' : '#444', fontFamily: 'IBM Plex Mono', fontSize: '11px', letterSpacing: '1px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                    style={{ flex: 1, padding: '8px', background: 'transparent', border: 'none', borderBottom: `2px solid ${active ? '#FF6600' : 'transparent'}`, color: active ? '#FF6600' : '#444', fontFamily: 'IBM Plex Mono', fontSize: '11px', letterSpacing: '1px', cursor: 'pointer', transition: 'all 0.15s', borderRadius: 0 }}>
                                     {mode}
                                 </button>
                             );
@@ -83,7 +83,7 @@ const Auth = () => {
 
                     {/* Error */}
                     {error && (
-                        <div style={{ background: 'rgba(255,34,68,0.08)', border: '1px solid #FF224433', padding: '8px 12px', marginBottom: '16px', color: '#FF4455', fontSize: '10px', letterSpacing: '0.05em' }}>
+                        <div style={{ background: 'rgba(255,34,68,0.08)', border: '1px solid #FF224433', padding: '8px 12px', marginBottom: '16px', color: '#FF4455', fontSize: '10px', letterSpacing: '0.05em', borderRadius: 0 }}>
                             {error.toUpperCase()}
                         </div>
                     )}
@@ -95,7 +95,7 @@ const Auth = () => {
                             <input
                                 type="email" required autoComplete="email"
                                 value={email} onChange={e => setEmail(e.target.value)}
-                                style={{ width: '100%', background: '#060606', border: '1px solid #1A1A1A', padding: '10px 12px', color: '#FFF', fontFamily: 'IBM Plex Mono', fontSize: '12px', outline: 'none', boxSizing: 'border-box', transition: 'border 0.15s' }}
+                                style={{ width: '100%', background: '#060606', border: '1px solid #1A1A1A', padding: '10px 12px', color: '#FFF', fontFamily: 'IBM Plex Mono', fontSize: '12px', outline: 'none', boxSizing: 'border-box', transition: 'border 0.15s', borderRadius: 0 }}
                                 onFocus={e => e.target.style.borderColor = '#FF6600'}
                                 onBlur={e => e.target.style.borderColor = '#1A1A1A'}
                                 placeholder="user@domain.com"
@@ -106,7 +106,7 @@ const Auth = () => {
                             <input
                                 type="password" required autoComplete="current-password"
                                 value={password} onChange={e => setPassword(e.target.value)}
-                                style={{ width: '100%', background: '#060606', border: '1px solid #1A1A1A', padding: '10px 12px', color: '#FFF', fontFamily: 'IBM Plex Mono', fontSize: '12px', outline: 'none', boxSizing: 'border-box', transition: 'border 0.15s' }}
+                                style={{ width: '100%', background: '#060606', border: '1px solid #1A1A1A', padding: '10px 12px', color: '#FFF', fontFamily: 'IBM Plex Mono', fontSize: '12px', outline: 'none', boxSizing: 'border-box', transition: 'border 0.15s', borderRadius: 0 }}
                                 onFocus={e => e.target.style.borderColor = '#FF6600'}
                                 onBlur={e => e.target.style.borderColor = '#1A1A1A'}
                                 placeholder="••••••••"
@@ -115,7 +115,22 @@ const Auth = () => {
 
                         <button
                             type="submit" disabled={isLoading}
-                            style={{ marginTop: '8px', padding: '12px', background: isLoading ? '#1A1A1A' : '#FF6600', color: isLoading ? '#555' : '#000', border: 'none', fontFamily: 'IBM Plex Mono', fontSize: '12px', fontWeight: 'bold', letterSpacing: '2px', cursor: isLoading ? 'not-allowed' : 'pointer', transition: 'background 0.15s' }}
+                            onMouseEnter={e => { if (!isLoading) { e.target.style.background = '#FF6600'; e.target.style.color = '#000'; } }}
+                            onMouseLeave={e => { if (!isLoading) { e.target.style.background = 'transparent'; e.target.style.color = '#FF6600'; } }}
+                            style={{
+                                marginTop: '8px',
+                                padding: '12px',
+                                background: 'transparent',
+                                color: isLoading ? '#555' : '#FF6600',
+                                border: `1px solid ${isLoading ? '#1A1A1A' : '#FF6600'}`,
+                                fontFamily: 'IBM Plex Mono',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                letterSpacing: '2px',
+                                cursor: isLoading ? 'not-allowed' : 'pointer',
+                                transition: 'all 0.15s',
+                                borderRadius: 0
+                            }}
                         >
                             {isLoading ? 'AUTHENTICATING...' : (isLogin ? 'ACCESS TERMINAL' : 'REQUEST ACCESS')}
                         </button>

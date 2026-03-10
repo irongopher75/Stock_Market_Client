@@ -1,35 +1,40 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { createChart, ColorType } from 'lightweight-charts';
+import { createChart, ColorType, CandlestickSeries, HistogramSeries, LineSeries } from 'lightweight-charts';
 import useTerminalStore from '../../store/useTerminalStore';
 
 const INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1D', '1W'];
 
-// Generate realistic-looking OHLCV data seeded by symbol
-const generateCandles = (symbol, count = 100) => {
+// Generate realistic-looking OHLCV data walking backwards from latest price
+const generateCandles = (symbol, basePrice, count = 100) => {
     const seed = symbol?.charCodeAt(0) ?? 65;
-    let price = 100 + (seed % 200);
+    let price = basePrice || (100 + (seed % 200));
     const now = Math.floor(Date.now() / 1000);
-    return Array.from({ length: count }, (_, i) => {
-        const open = price;
-        const chg = (Math.random() - 0.48) * price * 0.012;
-        const close = Math.max(open + chg, 1);
+    const result = [];
+
+    for (let i = 0; i < count; i++) {
+        const close = price;
+        const chg = (Math.random() - 0.5) * price * 0.01;
+        const open = Math.max(close - chg, 1);
         const high = Math.max(open, close) * (1 + Math.random() * 0.005);
         const low = Math.min(open, close) * (1 - Math.random() * 0.005);
         const volume = Math.floor(Math.random() * 8000000 + 500000);
-        price = close;
-        return {
-            time: now - (count - i) * 300,
+
+        result.unshift({
+            time: now - i * 300, // 5m intervals
             open: parseFloat(open.toFixed(2)),
             high: parseFloat(high.toFixed(2)),
             low: parseFloat(low.toFixed(2)),
             close: parseFloat(close.toFixed(2)),
             volume
-        };
-    });
+        });
+        price = open;
+    }
+    return result;
 };
 
 const MainChart = () => {
-    const { activeSymbol, equityPrices } = useTerminalStore();
+    const activeSymbol = useTerminalStore(state => state.activeSymbol);
+    const liveData = useTerminalStore(state => state.equityPrices[activeSymbol]);
     const [interval, setInterval] = useState('5m');
     const chartContainerRef = useRef(null);
     const chartRef = useRef(null);
@@ -38,7 +43,11 @@ const MainChart = () => {
     const sma20SeriesRef = useRef(null);
     const sma50SeriesRef = useRef(null);
 
-    const candles = useMemo(() => generateCandles(activeSymbol), [activeSymbol, interval]);
+    // Select the base price from the store to anchor the mock generator
+    const basePrice = useTerminalStore(state => state.equityPrices[activeSymbol]?.price);
+
+    // Generate historical candles anchored to the real price
+    const candles = useMemo(() => generateCandles(activeSymbol, basePrice), [activeSymbol, interval, basePrice]);
 
     useEffect(() => {
         if (!chartContainerRef.current) return;
@@ -53,7 +62,7 @@ const MainChart = () => {
                 horzLines: { color: '#1A1A1A' },
             },
             crosshair: {
-                mode: 0, // Normal mode
+                mode: 0,
             },
             rightPriceScale: {
                 borderVisible: false,
@@ -62,12 +71,16 @@ const MainChart = () => {
                 borderVisible: false,
                 timeVisible: true,
                 secondsVisible: false,
+                fixLeftEdge: true,
+                fixRightEdge: true,
+                shiftVisibleRangeOnNewBar: true,
             },
             handleScroll: true,
             handleScale: true,
+            autoSize: false,
         });
 
-        const candlestickSeries = chart.addCandlestickSeries({
+        const candlestickSeries = chart.addSeries(CandlestickSeries, {
             upColor: '#00FF41',
             downColor: '#FF2244',
             borderVisible: false,
@@ -75,18 +88,18 @@ const MainChart = () => {
             wickDownColor: '#FF2244',
         });
 
-        const volumeSeries = chart.addHistogramSeries({
+        const volumeSeries = chart.addSeries(HistogramSeries, {
             color: '#26a69a',
             priceFormat: { type: 'volume' },
             priceScaleId: '', // overlay
         });
 
-        volumeSeries.priceScale().applyOptions({
+        chart.priceScale('').applyOptions({
             scaleMargins: { top: 0.8, bottom: 0 },
         });
 
-        const sma20Series = chart.addLineSeries({ color: '#FF6600', lineWidth: 1 });
-        const sma50Series = chart.addLineSeries({ color: '#00CCFF', lineWidth: 1 });
+        const sma20Series = chart.addSeries(LineSeries, { color: '#FF6600', lineWidth: 1 });
+        const sma50Series = chart.addSeries(LineSeries, { color: '#00CCFF', lineWidth: 1 });
 
         chartRef.current = chart;
         candlestickSeriesRef.current = candlestickSeries;
@@ -94,18 +107,19 @@ const MainChart = () => {
         sma20SeriesRef.current = sma20Series;
         sma50SeriesRef.current = sma50Series;
 
-        const handleResize = () => {
-            chart.applyOptions({
-                width: chartContainerRef.current.clientWidth,
-                height: chartContainerRef.current.clientHeight
-            });
-        };
+        // Use ResizeObserver for robust panel resizing
+        const resizeObserver = new ResizeObserver(entries => {
+            if (entries.length === 0 || !chartContainerRef.current) return;
+            const { width, height } = entries[0].contentRect;
+            chart.applyOptions({ width, height });
+            // Small delay to ensure fitContent works after resize
+            setTimeout(() => chart.timeScale().fitContent(), 50);
+        });
 
-        window.addEventListener('resize', handleResize);
-        handleResize();
+        resizeObserver.observe(chartContainerRef.current);
 
         return () => {
-            window.removeEventListener('resize', handleResize);
+            resizeObserver.disconnect();
             chart.remove();
         };
     }, []);
@@ -140,28 +154,36 @@ const MainChart = () => {
         }).filter(d => d !== null);
         sma50SeriesRef.current.setData(sma50Data);
 
-        chartRef.current.timeScale().fitContent();
+        if (chartRef.current) {
+            setTimeout(() => {
+                chartRef.current.timeScale().fitContent();
+            }, 50);
+        }
     }, [candles]);
 
     // Live Data Integration
     useEffect(() => {
-        if (!candlestickSeriesRef.current || !equityPrices[activeSymbol]) return;
+        if (!candlestickSeriesRef.current || !liveData || !candles.length) return;
 
-        const live = equityPrices[activeSymbol];
+        const live = liveData;
         const last = candles[candles.length - 1];
 
-        // Update the last candle with live tick if it's the same minute
-        // For simplicity, we just update the price here
+        const currentMinute = Math.floor(Date.now() / 1000 / 60) * 60;
+        const lastCandleMinute = Math.floor(last.time / 60) * 60;
+        const isNewMinute = currentMinute > lastCandleMinute;
+
+        if (!live.price || !last.close) return;
+        if (Number(live.price).toFixed(2) === Number(last.close).toFixed(2) && !isNewMinute) return;
+
         candlestickSeriesRef.current.update({
-            time: last.time,
-            open: last.open,
-            high: Math.max(last.high, live.price),
-            low: Math.min(last.low, live.price),
+            time: isNewMinute ? currentMinute : last.time,
+            open: isNewMinute ? live.price : last.open,
+            high: isNewMinute ? live.price : Math.max(last.high, live.price),
+            low: isNewMinute ? live.price : Math.min(last.low, live.price),
             close: live.price
         });
-    }, [equityPrices, activeSymbol]);
+    }, [liveData, activeSymbol]);
 
-    const liveData = equityPrices[activeSymbol];
 
     return (
         <div style={{ height: '100%', background: '#0D0D0D', border: '1px solid #1A1A1A', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -192,7 +214,7 @@ const MainChart = () => {
                 </div>
             </div>
 
-            <div ref={chartContainerRef} style={{ flex: 1, position: 'relative' }} />
+            <div ref={chartContainerRef} style={{ flex: 1, minHeight: 0, position: 'relative' }} />
         </div>
     );
 };

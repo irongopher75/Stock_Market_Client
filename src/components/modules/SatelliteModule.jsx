@@ -66,6 +66,9 @@ const SatelliteModule = () => {
             getRadius: d => (selected?.mmsi === d.mmsi ? 50000 : 25000),
             pickable: true,
             onClick: ({ object }) => setSelected(object),
+            parameters: {
+                depthTest: true
+            },
             updateTriggers: {
                 getRadius: [selected?.mmsi],
                 getFillColor: [selected?.mmsi]
@@ -80,7 +83,10 @@ const SatelliteModule = () => {
             stroked: true,
             lineWidthMinPixels: 1,
             getRadius: 150000,
-            pickable: true
+            pickable: true,
+            parameters: {
+                depthTest: true
+            }
         })
     ];
 
@@ -94,13 +100,14 @@ const SatelliteModule = () => {
                 <span style={{ color: '#888' }}>PROC: <span style={{ color: '#00CCFF' }}>WEB WORKER</span></span>
             </div>
 
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-                <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+                <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                     <DeckGL
                         viewState={viewState}
                         onViewStateChange={e => setViewState(e.viewState)}
                         controller={true}
                         layers={layers}
+                        useDevicePixels={false}
                         getTooltip={({ object }) => object && (
                             object.mmsi ? `MMSI: ${object.mmsi}\nNAME: ${object.name}\nSPEED: ${object.speed}kts` : `CHOKEPOINT: ${object.name}`
                         )}

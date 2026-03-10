@@ -3,7 +3,7 @@ import api from '../../api/index';
 import useTerminalStore from '../../store/useTerminalStore';
 
 const IntelligencePanel = () => {
-    const { activeSymbol } = useTerminalStore();
+    const activeSymbol = useTerminalStore(state => state.activeSymbol);
     const [signal, setSignal] = useState(null);
     const [loading, setLoading] = useState(false);
 
@@ -11,7 +11,7 @@ const IntelligencePanel = () => {
         if (!activeSymbol) return;
         setLoading(true);
 
-        api.get('/api/v1/predict', { params: { symbol: activeSymbol } })
+        api.get(`/api/v1/predict/${activeSymbol}`)
             .then(res => {
                 setSignal(res.data);
                 setLoading(false);

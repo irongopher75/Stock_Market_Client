@@ -61,6 +61,9 @@ const AviationModule = () => {
             getRadius: d => (selected?.icao24 === d.icao24 ? 30000 : 15000),
             pickable: true,
             onClick: ({ object }) => setSelected(object),
+            parameters: {
+                depthTest: true
+            },
             updateTriggers: {
                 getRadius: [selected?.icao24],
                 getFillColor: [selected?.icao24]
@@ -86,13 +89,14 @@ const AviationModule = () => {
                 </div>
             </div>
 
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-                <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+                <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                     <DeckGL
                         viewState={viewState}
                         onViewStateChange={e => setViewState(e.viewState)}
                         controller={true}
                         layers={layers}
+                        useDevicePixels={false}
                         getTooltip={({ object }) => object && (
                             `FLIGHT: ${object.callsign}\nALT: ${Math.round(object.baro_altitude || 0).toLocaleString()}ft\nSPD: ${Math.round(object.velocity || 0)}kts\nHDG: ${Math.round(object.true_track || 0)}°`
                         )}

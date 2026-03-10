@@ -20,10 +20,8 @@ const initBook = (mid) => {
 };
 
 const OrderFlow = () => {
-    const { activeSymbol, equityPrices } = useTerminalStore();
-
-    // Use real mid price when available, otherwise 0 (show placeholder)
-    const realPrice = equityPrices[activeSymbol]?.price ?? null;
+    const activeSymbol = useTerminalStore(state => state.activeSymbol);
+    const realPrice = useTerminalStore(state => state.equityPrices[activeSymbol]?.price ?? null);
     const midRef = useRef(realPrice);
 
     const [book, setBook] = useState(() => initBook(realPrice ?? 100));

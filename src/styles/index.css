@@ -158,3 +158,13 @@ body,
     font-family: var(--font-data);
     font-size: 12px;
 }
+
+/* HIDE TRADINGVIEW ATTRIBUTION */
+div[class*="tv-embed-widget-wrapper__link"],
+div[data-name="tradingview-logo"],
+a[href*="tradingview.com"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}

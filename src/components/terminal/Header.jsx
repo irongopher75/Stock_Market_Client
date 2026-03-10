@@ -14,7 +14,13 @@ const MODES = [
 ];
 
 const Header = ({ onCommandPalette }) => {
-    const { activeMode, isLive, setActiveMode, activeSymbol } = useTerminalStore();
+    const activeMode = useTerminalStore(state => state.activeMode);
+    const setActiveMode = useTerminalStore(state => state.setActiveMode);
+    const isLive = useTerminalStore(state => state.isLive);
+    const activeSymbol = useTerminalStore(state => state.activeSymbol);
+    const liveData = useTerminalStore(state => state.equityPrices[activeSymbol]);
+    const currency = liveData?.currency || 'USD';
+    const currencySign = currency === 'INR' ? '₹' : currency === 'USDT' ? '₮' : '$';
     const [time, setTime] = useState(new Date().toLocaleTimeString('en-IN', { hour12: false }));
 
     useEffect(() => {
@@ -47,9 +53,21 @@ const Header = ({ onCommandPalette }) => {
                         ▸ AXIOM
                     </div>
                     {activeSymbol && (
-                        <div style={{ color: '#888', fontSize: '11px', fontFamily: 'IBM Plex Mono' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontFamily: 'IBM Plex Mono' }}>
                             <span style={{ color: '#555' }}>ACTIVE: </span>
                             <span style={{ color: '#FFF' }}>{activeSymbol}</span>
+                            {liveData && liveData.price != null && (
+                                <>
+                                    <span style={{ color: '#FFF', fontSize: '16px' }}>
+                                        {currencySign}{Number(liveData.price).toLocaleString()}
+                                    </span>
+                                    {liveData.changePercent != null && (
+                                        <span style={{ color: liveData.up ? '#00FF41' : '#FF2244', fontSize: '11px' }}>
+                                            {liveData.up ? '▲' : '▼'}{Math.abs(liveData.changePercent).toFixed(2)}%
+                                        </span>
+                                    )}
+                                </>
+                            )}
                         </div>
                     )}
                 </div>

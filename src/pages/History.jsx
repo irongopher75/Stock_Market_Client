@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import api, { getTradeHistory } from '../api/index';
 import { Download, Search, Filter, History, ArrowUpRight, ArrowDownRight, Printer, Share2 } from 'lucide-react';
 import LoadingScreen from '../components/shared/LoadingScreen';
