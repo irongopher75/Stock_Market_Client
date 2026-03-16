@@ -1,3 +1,5 @@
+import { getWsUrl } from './index';
+
 /**
  * AxiomWSClient — Standalone event-driven WebSocket hub.
  * Logic-agnostic: handles reconnection and routing, but doesn't manage state.
@@ -8,8 +10,12 @@ class AxiomWSClient {
         this.handlers = new Map();
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
-        const clientId = 'CL-' + Math.random().toString(36).substring(2, 9).toUpperCase();
-        this.url = `${import.meta.env.VITE_WS_URL || 'ws://localhost:8000'}/ws/terminal/${clientId}`;
+        this.clientId = 'CL-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+        
+        // Use environment variables if provided, otherwise derive from frontend host/API_URL
+        this.url = import.meta.env.VITE_WS_URL 
+            ? `${import.meta.env.VITE_WS_URL}/ws/terminal/${this.clientId}` 
+            : getWsUrl(this.clientId);
     }
 
     connect() {

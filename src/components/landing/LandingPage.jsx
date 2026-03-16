@@ -199,25 +199,32 @@ const SignalSection = ({ intel }) => {
         let currentLine = 0;
         let charIndex = 0;
         const speed = 15;
+        let timeoutId;
 
         const typeChar = () => {
             if (currentLine >= lines.length) return;
+            const lineIdx = currentLine;
+            const charIdx = charIndex;
+
             setTypedLines(prev => {
                 const updated = [...prev];
-                if (!updated[currentLine]) updated[currentLine] = "";
-                updated[currentLine] = lines[currentLine].substring(0, charIndex + 1);
+                if (!updated[lineIdx]) updated[lineIdx] = "";
+                updated[lineIdx] = lines[lineIdx]?.substring(0, charIdx + 1) || "";
                 return updated;
             });
+            
             charIndex++;
-            if (charIndex >= lines[currentLine].length) {
+            if (charIndex >= lines[lineIdx].length) {
                 currentLine++;
                 charIndex = 0;
-                setTimeout(typeChar, 60);
+                timeoutId = setTimeout(typeChar, 60);
             } else {
-                setTimeout(typeChar, speed);
+                timeoutId = setTimeout(typeChar, speed);
             }
         };
         typeChar();
+        
+        return () => clearTimeout(timeoutId);
     }, [shouldType, intel]);
 
     return (
