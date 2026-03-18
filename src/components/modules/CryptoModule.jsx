@@ -1,8 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const CRYPTOS = [];
-
-import React, { useState, useEffect } from 'react';
 
 const CryptoModule = () => {
     const [loading, setLoading] = useState(true);
