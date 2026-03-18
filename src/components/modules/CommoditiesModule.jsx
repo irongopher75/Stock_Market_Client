@@ -1,8 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const COMMODITIES = [];
-
-import React, { useState, useEffect } from 'react';
 
 const CommoditiesModule = () => {
     const [loading, setLoading] = useState(true);
