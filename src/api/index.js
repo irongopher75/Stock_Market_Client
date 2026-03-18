@@ -100,11 +100,11 @@ export const getBacktestResult = async (runId) => {
 }
 
 export const getPendingUsers = async () => {
-    return await api.get('/admin/pending-users');
+    return await api.get('/api/v1/admin/pending-users');
 }
 
 export const approveUser = async (user_id) => {
-    return await api.post(`/admin/approve/${user_id}`);
+    return await api.post(`/api/v1/admin/approve/${user_id}`);
 }
 
 export const getActiveTrades = async () => {
@@ -129,6 +129,14 @@ export const closeTrade = async (tradeId) => {
 
 export const getSystemConfig = async () => {
     return await api.get('/trades/config');
+}
+
+export const getMacroYields = async () => {
+    return await api.get('/api/v1/quotes/macro/yields');
+}
+
+export const getMacroFx = async () => {
+    return await api.get('/api/v1/quotes/macro/fx');
 }
 
 export default api;

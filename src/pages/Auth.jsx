@@ -35,10 +35,14 @@ const Auth = () => {
                 setIsLogin(true);
             }
         } catch (err) {
-            const detail = err.response?.data?.detail;
-            if (Array.isArray(detail)) setError(detail.map(d => d.msg).join(', '));
-            else if (typeof detail === 'string') setError(detail);
-            else setError('Authentication failed. Check credentials.');
+            if (!err.response) {
+                setError('SERVER OFFLINE. PLEASE START BACKEND SERVER.');
+            } else {
+                const detail = err.response?.data?.detail;
+                if (Array.isArray(detail)) setError(detail.map(d => d.msg).join(', '));
+                else if (typeof detail === 'string') setError(detail);
+                else setError('Authentication failed. Check credentials.');
+            }
         } finally {
             setIsLoading(false);
         }

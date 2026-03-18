@@ -122,12 +122,34 @@ const PortfolioRisk = () => {
 
                         {isAdding && (
                             <form onSubmit={handleAdd} style={{ padding: '10px', background: '#0A0A0A', border: '1px solid #1A1A1A', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <input
-                                    placeholder="SYMBOL (e.g. AAPL)"
-                                    value={newSymbol}
-                                    onChange={e => setNewSymbol(e.target.value)}
-                                    style={{ background: '#000', border: '1px solid #333', color: '#FFF', fontSize: '11px', padding: '6px', fontFamily: 'IBM Plex Mono' }}
-                                />
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        placeholder="SEARCH SYMBOL..."
+                                        value={newSymbol}
+                                        onChange={e => setNewSymbol(e.target.value)}
+                                        onFocus={() => setNewSymbol('')} // Clear to show full list on focus
+                                        style={{ width: '100%', background: '#000', border: '1px solid #333', color: '#FFF', fontSize: '11px', padding: '6px', fontFamily: 'IBM Plex Mono', boxSizing: 'border-box' }}
+                                    />
+                                    {isAdding && document.activeElement && newSymbol.length >= 0 && (
+                                         <div style={{ position: 'absolute', top: '100%', left: 0, width: '100%', maxHeight: '120px', overflowY: 'auto', background: '#111', border: '1px solid #333', borderTop: 'none', zIndex: 10 }}>
+                                            {Object.keys(equityPrices)
+                                                .filter(sym => sym.toLowerCase().includes(newSymbol.toLowerCase()))
+                                                .sort()
+                                                .map(sym => (
+                                                    <div 
+                                                        key={sym} 
+                                                        onMouseDown={() => setNewSymbol(sym)} // Use mousedown to fire before blur
+                                                        style={{ padding: '4px 6px', cursor: 'pointer', fontSize: '10px', color: '#BBB', borderBottom: '1px solid #222' }}
+                                                    >
+                                                        {sym}
+                                                    </div>
+                                            ))}
+                                            {Object.keys(equityPrices).filter(sym => sym.toLowerCase().includes(newSymbol.toLowerCase())).length === 0 && (
+                                                 <div style={{ padding: '4px 6px', fontSize: '10px', color: '#666' }}>NO RESULTS</div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                                 <div style={{ display: 'flex', gap: '4px' }}>
                                     <input
                                         placeholder="QTY"

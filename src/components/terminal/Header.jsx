@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import useTerminalStore from '../../store/useTerminalStore';
+import { getMe } from '../../api/index';
+import { useNavigate } from 'react-router-dom';
 
 const MODES = [
     { key: 'F1', label: 'EQUITIES' },
@@ -22,8 +24,11 @@ const Header = ({ onCommandPalette }) => {
     const currency = liveData?.currency || 'USD';
     const currencySign = currency === 'INR' ? '₹' : currency === 'USDT' ? '₮' : '$';
     const [time, setTime] = useState(new Date().toLocaleTimeString('en-IN', { hour12: false }));
+    const [isAdmin, setIsAdmin] = useState(false);
+    const navigate = useNavigate();
 
     useEffect(() => {
+        getMe().then(res => setIsAdmin(res.data?.is_superuser)).catch(() => {});
         const timer = setInterval(() => setTime(new Date().toLocaleTimeString('en-IN', { hour12: false })), 1000);
         return () => clearInterval(timer);
     }, []);
@@ -80,6 +85,14 @@ const Header = ({ onCommandPalette }) => {
                     >
                         / CMD
                     </span>
+                    {isAdmin && (
+                        <span
+                            onClick={() => navigate('/admin')}
+                            style={{ color: '#FF6600', cursor: 'pointer', border: '1px solid #FF660033', background: 'rgba(255,102,0,0.1)', padding: '2px 8px', fontSize: '10px', letterSpacing: '0.05em' }}
+                        >
+                            ★ ADMIN
+                        </span>
+                    )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                         <span style={{
                             width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block',

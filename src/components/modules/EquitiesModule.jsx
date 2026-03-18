@@ -3,7 +3,7 @@ import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'reac
 import Watchlist from '../terminal/Watchlist';
 import MainChart from '../terminal/MainChart';
 import OrderFlow from '../terminal/OrderFlow';
-import IntelligencePanel from '../terminal/IntelligencePanel';
+import IntelligenceTabs from '../terminal/IntelligenceTabs';
 import GlobalIntelFeed from '../terminal/GlobalIntelFeed';
 import PortfolioRisk from '../terminal/PortfolioRisk';
 
@@ -31,7 +31,7 @@ const EquitiesModule = () => (
                     </Panel>
                     <PanelResizeHandle style={{ width: 1, minWidth: 1, flexShrink: 0, background: '#1A1A1A', cursor: 'col-resize' }} />
                     <Panel defaultSize={25} minSize={18} style={{ minWidth: 0 }}>
-                        <IntelligencePanel />
+                        <IntelligenceTabs />
                     </Panel>
                 </PanelGroup>
             </Panel>
