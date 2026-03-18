@@ -1,18 +1,29 @@
 import React, { useState, useEffect } from 'react';
-
-const COMMODITIES = [];
+import api from '../../api/index';
 
 const CommoditiesModule = () => {
+    const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
     useEffect(() => {
-        // Simulate fetch attempt that fails (no source configured)
-        const timer = setTimeout(() => {
-            setLoading(false);
-            setError(true);
-        }, 1500);
-        return () => clearTimeout(timer);
+        const fetchCommodities = async () => {
+            try {
+                const res = await api.get('/api/v1/quotes/macro/commodities');
+                if (res.data && res.data.assets) {
+                    setData(res.data.assets);
+                }
+                setLoading(false);
+            } catch (err) {
+                console.error("Failed to fetch commodities:", err);
+                setError(true);
+                setLoading(false);
+            }
+        };
+
+        fetchCommodities();
+        const poll = setInterval(fetchCommodities, 60000);
+        return () => clearInterval(poll);
     }, []);
 
     const renderErrorState = () => (
@@ -21,15 +32,43 @@ const CommoditiesModule = () => {
         </div>
     );
 
+    const mono = { fontFamily: 'IBM Plex Mono, monospace' };
+
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#000', overflow: 'hidden' }}>
-            <div style={{ padding: '5px 12px', background: '#0D0D0D', borderBottom: '1px solid #1A1A1A', fontSize: '11px', fontFamily: 'IBM Plex Mono', color: '#888', flexShrink: 0 }}>
-            COMMODITIES / F4 · CRB INDEX: <span style={{ color: '#00FF41' }}>278.42 ▲ +0.54%</span> · BALTIC DRY: <span style={{ color: '#00FF41' }}>1,842 ▲</span>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#000', overflow: 'hidden' }}>
+        <div style={{ padding: '5px 12px', background: '#0D0D0D', borderBottom: '1px solid #1A1A1A', fontSize: '11px', ...mono, color: '#888', flexShrink: 0, display: 'flex', justifyContent: 'space-between' }}>
+            <span>COMMODITIES / F4</span>
+            <span>{loading && data.length > 0 ? "↻ UPDATING..." : "LIVE POLLING"}</span>
         </div>
-        <div style={{ flex: 1, display: 'flex', alignContent: 'flex-start', padding: '1px', overflow: 'auto', background: '#111' }}>
-            {loading ? (
-                <div style={{ padding: '20px', color: '#888', fontSize: '11px', fontFamily: 'IBM Plex Mono' }}>FETCHING COMMODITY PRICES...</div>
-            ) : renderErrorState()}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', overflowY: 'auto' }}>
+            {loading && data.length === 0 ? (
+                <div style={{ padding: '20px', color: '#888', fontSize: '11px', ...mono }}>FETCHING COMMODITIES...</div>
+            ) : error ? (
+                renderErrorState()
+            ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', ...mono, textAlign: 'left' }}>
+                    <thead>
+                        <tr style={{ background: '#111', color: '#666', borderBottom: '1px solid #1A1A1A' }}>
+                            <th style={{ padding: '8px 12px', fontWeight: 'normal' }}>ASSET</th>
+                            <th style={{ padding: '8px 12px', fontWeight: 'normal', textAlign: 'right' }}>PRICE</th>
+                            <th style={{ padding: '8px 12px', fontWeight: 'normal', textAlign: 'right' }}>24H CHG</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.map((item, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid #1A1A1A' }}>
+                                <td style={{ padding: '8px 12px', color: '#D4D4D4' }}>{item.symbol}</td>
+                                <td style={{ padding: '8px 12px', color: '#FFF', textAlign: 'right' }}>
+                                    ${item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: item.up ? '#00FF41' : '#FF3B30', textAlign: 'right' }}>
+                                    {item.up ? '+' : ''}{item.change_pct}%
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
         </div>
     </div>
     );

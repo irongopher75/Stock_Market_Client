@@ -1,16 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import api from '../../api/index';
 
 const FixedIncomeModule = () => {
+    const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setLoading(false);
-            setError(true);
-        }, 1500);
-        return () => clearTimeout(timer);
+        const fetchYields = async () => {
+            try {
+                const res = await api.get('/api/v1/quotes/macro/yields');
+                if (res.data && res.data.US) {
+                    setData(res.data.US);
+                }
+                setLoading(false);
+            } catch (err) {
+                console.error("Failed to fetch yields:", err);
+                setError(true);
+                setLoading(false);
+            }
+        };
+
+        fetchYields();
+        const poll = setInterval(fetchYields, 60000);
+        return () => clearInterval(poll);
     }, []);
 
     const renderErrorState = () => (
@@ -19,26 +32,43 @@ const FixedIncomeModule = () => {
         </div>
     );
 
+    const mono = { fontFamily: 'IBM Plex Mono, monospace' };
+
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#000', overflow: 'hidden' }}>
-            <div style={{ padding: '5px 12px', background: '#0D0D0D', borderBottom: '1px solid #1A1A1A', fontSize: '11px', fontFamily: 'IBM Plex Mono', color: '#888', flexShrink: 0 }}>
-                FIXED INCOME / F2 · US 2s10s SPREAD: <span style={{ color: '#FF2244' }}>-32bps (INVERTED)</span>
-            </div>
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                <div style={{ width: '240px', background: '#0D0D0D', borderRight: '1px solid #1A1A1A', overflow: 'auto', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ padding: '6px 10px', borderBottom: '1px solid #1A1A1A', fontSize: '11px', color: '#FF6600', flexShrink: 0 }}>SOVEREIGN YIELDS</div>
-                    <div style={{ flex: 1, padding: '10px' }}>
-                        {loading ? <div style={{color:'#888', fontFamily:'IBM Plex Mono', fontSize:'11px'}}>FETCHING YIELDS...</div> : renderErrorState()}
-                    </div>
-                </div>
-                <div style={{ flex: 1, padding: '10px', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ fontSize: '11px', color: '#FF6600', fontFamily: 'IBM Plex Mono', marginBottom: '8px', flexShrink: 0 }}>MULTI-MARKET YIELD COMPARISON (30d)</div>
-                    <div style={{ flex: 1 }}>
-                        {loading ? <div style={{color:'#888', padding:'20px', fontFamily:'IBM Plex Mono', fontSize:'11px'}}>FETCHING YIELD CURVES...</div> : renderErrorState()}
-                    </div>
-                </div>
-            </div>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#000', overflow: 'hidden' }}>
+        <div style={{ padding: '5px 12px', background: '#0D0D0D', borderBottom: '1px solid #1A1A1A', fontSize: '11px', ...mono, color: '#888', flexShrink: 0, display: 'flex', justifyContent: 'space-between' }}>
+            <span>FIXED INCOME / F2</span>
+            <span>{loading && data.length > 0 ? "↻ UPDATING..." : "US TREASURY CURVE"}</span>
         </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', overflowY: 'auto' }}>
+            {loading && data.length === 0 ? (
+                <div style={{ padding: '20px', color: '#888', fontSize: '11px', ...mono }}>FETCHING YIELDS...</div>
+            ) : error ? (
+                renderErrorState()
+            ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', ...mono, textAlign: 'left' }}>
+                    <thead>
+                        <tr style={{ background: '#111', color: '#666', borderBottom: '1px solid #1A1A1A' }}>
+                            <th style={{ padding: '8px 12px', fontWeight: 'normal' }}>MATURITY</th>
+                            <th style={{ padding: '8px 12px', fontWeight: 'normal', textAlign: 'right' }}>YIELD</th>
+                            <th style={{ padding: '8px 12px', fontWeight: 'normal', textAlign: 'right' }}>1D BPS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.map((item, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid #1A1A1A' }}>
+                                <td style={{ padding: '8px 12px', color: '#D4D4D4' }}>{item.maturity}</td>
+                                <td style={{ padding: '8px 12px', color: '#FFF', textAlign: 'right' }}>{item.yield.toFixed(3)}%</td>
+                                <td style={{ padding: '8px 12px', color: item.up ? '#00FF41' : '#FF3B30', textAlign: 'right' }}>
+                                    {item.up ? '+' : ''}{item.chg_bps.toFixed(1)}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
+        </div>
+    </div>
     );
 };
 
