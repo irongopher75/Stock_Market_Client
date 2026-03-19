@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/index';
+import useTabVisibility from '../../hooks/useTabVisibility';
 
 const CryptoModule = () => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+    const isVisible = useTabVisibility();
 
     useEffect(() => {
         const fetchCrypto = async () => {
@@ -21,10 +23,15 @@ const CryptoModule = () => {
             }
         };
 
-        fetchCrypto();
-        const poll = setInterval(fetchCrypto, 60000); // 1 minute polling
+        if (isVisible) {
+            fetchCrypto();
+        }
+        
+        const poll = setInterval(() => {
+            if (isVisible) fetchCrypto();
+        }, 60000);
         return () => clearInterval(poll);
-    }, []);
+    }, [isVisible]);
 
     const renderErrorState = () => (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FF2244', fontSize: '11px', fontFamily: 'IBM Plex Mono', letterSpacing: '1px' }}>

@@ -9,6 +9,7 @@ const useTerminalStore = create((set, get) => ({
 
     // LIVE DATA STREAMS
     equityPrices: {}, // { symbol: { price, volume, timestamp } }
+    watchlist: [],
     vessels: [],
     aircraft: [],
     intelFeed: [],
@@ -42,6 +43,37 @@ const useTerminalStore = create((set, get) => ({
     removePosition: (symbol) => set((state) => ({
         portfolio: state.portfolio.filter(p => p.symbol !== symbol)
     })),
+
+    fetchWatchlist: async () => {
+        try {
+            const res = await api.get('/api/v1/users/watchlist');
+            set({ watchlist: res.data });
+            return res.data;
+        } catch (e) {
+            console.error('[AXIOM] Failed to fetch watchlist:', e);
+            return [];
+        }
+    },
+
+    addToWatchlist: async (symbol) => {
+        try {
+            const res = await api.post(`/api/v1/users/watchlist/${symbol}`);
+            set({ watchlist: res.data });
+            // Re-fetch batch to get the price immediately
+            get().connect(true); 
+        } catch (e) {
+            console.error('[AXIOM] Failed to add to watchlist:', e);
+        }
+    },
+
+    removeFromWatchlist: async (symbol) => {
+        try {
+            const res = await api.delete(`/api/v1/users/watchlist/${symbol}`);
+            set({ watchlist: res.data });
+        } catch (e) {
+            console.error('[AXIOM] Failed to remove from watchlist:', e);
+        }
+    },
 
     getPortfolioMetrics: () => {
         const { portfolio, equityPrices } = get();
@@ -87,9 +119,14 @@ const useTerminalStore = create((set, get) => ({
     },
 
     // WEBSOCKET HUB CONNECTION
-    connect: () => {
-        if (get().isLive || get()._connected) return;
+    connect: async (forceRefresh = false) => {
+        if (!forceRefresh && (get().isLive || get()._connected)) return;
         set({ _connected: true });
+
+        // Step 0: Ensure watchlist is loaded
+        if (get().watchlist.length === 0) {
+            await get().fetchWatchlist();
+        }
 
         // Step 1: Pre-seed with real last-close prices from yfinance
         const fetchLastKnownPrices = async () => {

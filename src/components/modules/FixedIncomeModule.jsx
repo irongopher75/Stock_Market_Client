@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/index';
+import useTabVisibility from '../../hooks/useTabVisibility';
 
 const FixedIncomeModule = () => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+    const isVisible = useTabVisibility();
 
     useEffect(() => {
         const fetchYields = async () => {
@@ -21,10 +23,15 @@ const FixedIncomeModule = () => {
             }
         };
 
-        fetchYields();
-        const poll = setInterval(fetchYields, 60000);
+        if (isVisible) {
+            fetchYields();
+        }
+        
+        const poll = setInterval(() => {
+            if (isVisible) fetchYields();
+        }, 60000);
         return () => clearInterval(poll);
-    }, []);
+    }, [isVisible]);
 
     const renderErrorState = () => (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FF2244', fontSize: '11px', fontFamily: 'IBM Plex Mono', letterSpacing: '1px' }}>
