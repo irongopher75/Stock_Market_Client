@@ -12,12 +12,15 @@ const api = axios.create({
 
 export const getWsUrl = (clientId) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const token = localStorage.getItem('token');
+    const tokenQuery = token ? `?token=${token}` : '';
+    
     // If API_URL is absolute, replace protocol. If it's relative, use current host.
     if (API_URL.startsWith('http')) {
         const url = new URL(API_URL);
-        return `${protocol}//${url.host}/ws/terminal/${clientId}`;
+        return `${protocol}//${url.host}/ws/terminal/${clientId}${tokenQuery}`;
     }
-    return `${protocol}//${window.location.host}${API_URL}/ws/terminal/${clientId}`;
+    return `${protocol}//${window.location.host}${API_URL}/ws/terminal/${clientId}${tokenQuery}`;
 };
 
 // Interceptor to add JWT token
