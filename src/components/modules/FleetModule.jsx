@@ -1,71 +1,67 @@
-const COMMODITIES = [];
-const CORRELATION_DATA = [];
-const PORT_CONGESTION = [];
-
-import React, { useState, useEffect } from 'react';
-import { ScatterChart, Scatter, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import React, { useState, useEffect, useRef } from 'react';
+import useTerminalStore from '../../store/useTerminalStore';
 
 const FleetModule = () => {
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(false);
+    const { vessels } = useTerminalStore();
+    const [processedVessels, setProcessedVessels] = useState([]);
+    const workerRef = useRef(null);
 
+    // Initialize worker
     useEffect(() => {
-        // Simulate fetch attempt that fails (no data source available yet)
-        const timer = setTimeout(() => {
-            setLoading(false);
-            setError(true);
-        }, 1500);
-        return () => clearTimeout(timer);
+        workerRef.current = new Worker(new URL('../../workers/dataWorker.js', import.meta.url));
+
+        workerRef.current.onmessage = ({ data }) => {
+            if (data.type === 'VESSEL_BATCH_READY') {
+                setProcessedVessels(data.payload);
+            }
+        };
+
+        return () => workerRef.current.terminate();
     }, []);
 
-    const renderErrorState = () => (
-        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FF2244', fontSize: '11px', fontFamily: 'IBM Plex Mono', letterSpacing: '1px' }}>
-            UNABLE TO FETCH INFO
-        </div>
-    );
+    // Offload processing to worker
+    useEffect(() => {
+        if (workerRef.current && vessels.length > 0) {
+            workerRef.current.postMessage({ type: 'PROCESS_VESSEL_BATCH', payload: vessels });
+        }
+    }, [vessels]);
+
+    const mono = { fontFamily: 'IBM Plex Mono, monospace' };
 
     return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#000', overflow: 'hidden' }}>
-        <div style={{ padding: '5px 12px', background: '#0D0D0D', borderBottom: '1px solid #1A1A1A', fontSize: '11px', fontFamily: 'IBM Plex Mono', color: '#888', flexShrink: 0 }}>
-            FLEET & COMMODITIES / F7 · Baltic Dry Index: <span style={{ color: '#00FF41' }}>1,842 ▲ +2.1%</span>
-        </div>
-
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-            {/* Commodity Prices */}
-            <div style={{ width: '260px', background: '#0D0D0D', borderRight: '1px solid #1A1A1A', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
-                <div style={{ padding: '6px 10px', borderBottom: '1px solid #1A1A1A', fontSize: '11px', color: '#FF6600' }}>COMMODITY PRICES</div>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {loading ? <div style={{color:'#888', padding:'20px', fontFamily:'IBM Plex Mono', fontSize:'11px'}}>FETCHING COMMODITIES...</div> : renderErrorState()}
-                </div>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#000', overflow: 'hidden' }}>
+            <div style={{ padding: '5px 12px', background: '#0D0D0D', borderBottom: '1px solid #1A1A1A', fontSize: '11px', ...mono, color: '#888', flexShrink: 0 }}>
+                FLEET / AIS · ACTIVE: <span style={{ color: '#00FF41' }}>{vessels.length}</span> · POLLING: <span style={{ color: '#00CCFF' }}>AISSTREAM</span>
             </div>
 
-            {/* Charts */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {/* Tanker vs WTI Correlation */}
-                <div style={{ flex: 1, borderBottom: '1px solid #1A1A1A', padding: '10px', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ fontSize: '11px', color: '#FF6600', fontFamily: 'IBM Plex Mono', marginBottom: '8px' }}>
-                        HORMUZ TANKER COUNT vs WTI PRICE (90d scatter)
-                    </div>
-                        <div style={{ flex: 1 }}>
-                            {loading ? <div style={{color:'#888', padding:'20px', fontFamily:'IBM Plex Mono', fontSize:'11px'}}>FETCHING FLEET METRICS...</div> : renderErrorState()}
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {processedVessels.length === 0 ? (
+                        <div style={{ padding: '20px', color: '#444', fontSize: '11px', ...mono }}>
+                            {vessels.length > 0 ? "PROCESSING VESSEL DATA..." : "WAITING FOR AIS DATA..."}
                         </div>
-                    </div>
-
-                    {/* Port Congestion */}
-                    <div style={{ flex: 1, padding: '10px', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ fontSize: '11px', color: '#FF6600', fontFamily: 'IBM Plex Mono', marginBottom: '8px' }}>
-                            PORT CONGESTION INDEX (vessels at anchor)
-                        </div>
-                        <div style={{ flex: 1 }}>
-                            {loading ? <div style={{color:'#888', padding:'20px', fontFamily:'IBM Plex Mono', fontSize:'11px'}}>FETCHING PORT METRICS...</div> : renderErrorState()}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Auto-insights */}
-                <div style={{ width: '240px', background: '#0D0D0D', borderLeft: '1px solid #1A1A1A', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-                    <div style={{ padding: '6px 10px', borderBottom: '1px solid #1A1A1A', fontSize: '11px', color: '#FF6600' }}>GEO → COMMODITY SIGNALS</div>
-                    {loading ? <div style={{color:'#888', padding:'20px', fontFamily:'IBM Plex Mono', fontSize:'11px'}}>FETCHING SIGNALS...</div> : renderErrorState()}
+                    ) : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', ...mono, textAlign: 'left' }}>
+                            <thead>
+                                <tr style={{ background: '#111', color: '#666', borderBottom: '1px solid #1A1A1A' }}>
+                                    <th style={{ padding: '8px 12px', fontWeight: 'normal' }}>NAME</th>
+                                    <th style={{ padding: '8px 12px', fontWeight: 'normal' }}>TYPE</th>
+                                    <th style={{ padding: '8px 12px', fontWeight: 'normal', textAlign: 'right' }}>SPEED</th>
+                                    <th style={{ padding: '8px 12px', fontWeight: 'normal', textAlign: 'right' }}>DESTINATION</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {processedVessels.map((v, i) => (
+                                    <tr key={v.mmsi || i} style={{ borderBottom: '1px solid #1A1A1A' }}>
+                                        <td style={{ padding: '8px 12px', color: '#FFF' }}>{v.name || 'UNKNOWN'}</td>
+                                        <td style={{ padding: '8px 12px', color: `rgb(${v.color.join(',')})` }}>{v.type}</td>
+                                        <td style={{ padding: '8px 12px', color: '#888', textAlign: 'right' }}>{v.speed} kts</td>
+                                        <td style={{ padding: '8px 12px', color: '#D4D4D4', textAlign: 'right' }}>{v.destination}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
         </div>
