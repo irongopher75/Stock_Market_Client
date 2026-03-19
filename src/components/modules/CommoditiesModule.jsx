@@ -59,10 +59,10 @@ const CommoditiesModule = () => {
                             <tr key={i} style={{ borderBottom: '1px solid #1A1A1A' }}>
                                 <td style={{ padding: '8px 12px', color: '#D4D4D4' }}>{item.symbol}</td>
                                 <td style={{ padding: '8px 12px', color: '#FFF', textAlign: 'right' }}>
-                                    ${item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    ${(item.price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
                                 <td style={{ padding: '8px 12px', color: item.up ? '#00FF41' : '#FF3B30', textAlign: 'right' }}>
-                                    {item.up ? '+' : ''}{item.change_pct}%
+                                    {item.up ? '+' : ''}{item.change_pct ?? '0.00'}%
                                 </td>
                             </tr>
                         ))}

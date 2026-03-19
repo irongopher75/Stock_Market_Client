@@ -58,9 +58,11 @@ const FixedIncomeModule = () => {
                         {data.map((item, i) => (
                             <tr key={i} style={{ borderBottom: '1px solid #1A1A1A' }}>
                                 <td style={{ padding: '8px 12px', color: '#D4D4D4' }}>{item.maturity}</td>
-                                <td style={{ padding: '8px 12px', color: '#FFF', textAlign: 'right' }}>{item.yield.toFixed(3)}%</td>
+                                <td style={{ padding: '8px 12px', color: '#FFF', textAlign: 'right' }}>
+                                    {item.yield?.toFixed ? item.yield.toFixed(3) : '0.000'}%
+                                </td>
                                 <td style={{ padding: '8px 12px', color: item.up ? '#00FF41' : '#FF3B30', textAlign: 'right' }}>
-                                    {item.up ? '+' : ''}{item.chg_bps.toFixed(1)}
+                                    {item.up ? '+' : ''}{item.chg_bps?.toFixed ? item.chg_bps.toFixed(1) : '0.0'}
                                 </td>
                             </tr>
                         ))}
