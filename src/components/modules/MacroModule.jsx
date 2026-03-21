@@ -39,8 +39,10 @@ const MacroModule = () => {
                     if (yieldsRes.data && Object.keys(yieldsRes.data).length > 0) {
                         setYieldCurves(yieldsRes.data);
                     }
-                    if (fxRes.data && fxRes.data.length > 0) {
-                        setFxPairs(fxRes.data);
+                    // Fix: Backend returns { assets: [...] }
+                    const fxData = fxRes.data?.assets || fxRes.data;
+                    if (Array.isArray(fxData)) {
+                        setFxPairs(fxData);
                     }
                 }
             } catch (err) {
@@ -48,8 +50,14 @@ const MacroModule = () => {
                 if (mounted) setError(true);
             }
         };
+
         fetchData();
-        return () => { mounted = false; };
+        const poll = setInterval(fetchData, 60000); // Poll macro data every 60s
+
+        return () => { 
+            mounted = false; 
+            clearInterval(poll);
+        };
     }, []);
 
     return (
@@ -97,11 +105,11 @@ const MacroModule = () => {
                             </div>
                         ) : (
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                {fxPairs.map(fx => (
-                                    <div key={fx.pair} style={{ padding: '6px 10px', border: '1px solid #1A1A1A', background: fx.up ? 'rgba(0,255,65,0.05)' : 'rgba(255,34,68,0.05)', fontFamily: 'IBM Plex Mono', fontSize: '10px', minWidth: '110px' }}>
-                                        <div style={{ color: '#888', fontSize: '9px' }}>{fx.pair}</div>
-                                        <div style={{ color: '#FFF' }}>{fx.rate}</div>
-                                        <div style={{ color: fx.up ? '#00FF41' : '#FF2244', fontSize: '9px' }}>{fx.chg}</div>
+                                {fxPairs.map((fx, idx) => (
+                                    <div key={fx.symbol || idx} style={{ padding: '6px 10px', border: '1px solid #1A1A1A', background: fx.up ? 'rgba(0,255,65,0.05)' : 'rgba(255,34,68,0.05)', fontFamily: 'IBM Plex Mono', fontSize: '10px', minWidth: '110px' }}>
+                                        <div style={{ color: '#888', fontSize: '9px' }}>{fx.symbol}</div>
+                                        <div style={{ color: '#FFF' }}>{fx.price}</div>
+                                        <div style={{ color: fx.up ? '#00FF41' : '#FF2244', fontSize: '9px' }}>{fx.up ? '+' : ''}{fx.change_pct}%</div>
                                     </div>
                                 ))}
                             </div>

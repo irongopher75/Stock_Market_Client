@@ -160,6 +160,14 @@ const useTerminalStore = create((set, get) => ({
             set({ isLive: status === 'CONNECTED' });
         });
 
+        wsClient.on('SNAPSHOT', (payload) => {
+            set({
+                vessels: payload.vessels || [],
+                aircraft: payload.aircraft || []
+            });
+            console.log(`[AXIOM] Received snapshot: ${payload.vessels?.length} vessels, ${payload.aircraft?.length} aircraft`);
+        });
+
         wsClient.on('EQUITY', (payload) => {
             set((state) => {
                 const current = state.equityPrices[payload.symbol];

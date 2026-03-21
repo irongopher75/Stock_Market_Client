@@ -52,6 +52,8 @@ const CryptoModule = () => {
                 <div style={{ padding: '20px', color: '#888', fontSize: '11px', ...mono }}>FETCHING CRYPTO PRICES...</div>
             ) : error ? (
                 renderErrorState()
+            ) : data.length === 0 ? (
+                <div style={{ padding: '20px', color: '#444', fontSize: '11px', ...mono, textAlign: 'center' }}>NO LIVE CRYPTO DATA AVAILABLE</div>
             ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', ...mono, textAlign: 'left' }}>
                     <thead>

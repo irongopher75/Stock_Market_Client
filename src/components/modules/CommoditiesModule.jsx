@@ -52,6 +52,8 @@ const CommoditiesModule = () => {
                 <div style={{ padding: '20px', color: '#888', fontSize: '11px', ...mono }}>FETCHING COMMODITIES...</div>
             ) : error ? (
                 renderErrorState()
+            ) : data.length === 0 ? (
+                <div style={{ padding: '20px', color: '#444', fontSize: '11px', ...mono, textAlign: 'center' }}>NO LIVE COMMODITY DATA AVAILABLE</div>
             ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', ...mono, textAlign: 'left' }}>
                     <thead>
